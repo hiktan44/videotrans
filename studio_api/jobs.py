@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import pysubs2
+import edge_tts
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment, effects
 
@@ -18,11 +20,9 @@ from app.abus_asr_parameters import WhisperParameters
 from app.abus_downloader import YoutubeDownloader
 from app.abus_ffmpeg import ffmpeg_codec_type, ffmpeg_extract_audio
 from app.abus_openai import OpenAITranscribeInference, OpenAITTS
-from app.abus_tts_edge import EdgeTTS
 from app.abus_zai import ZAITranscribeInference, ZAITranslator
 from app.abus_translate_deep import DeepTranslator
 from app.abus_translate_azure import AzureTranslator
-from app.abus_genuine import azure_text_api_working
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -239,7 +239,7 @@ def translate_job(job: Dict, report: Callable[[float, str], None]) -> Dict:
     def run_translator(selected_provider: str) -> None:
         if selected_provider == "zai":
             ZAITranslator().translate_file(source_lang, target_lang, str(subtitle_path), str(output_path))
-        elif selected_provider == "azure" and azure_text_api_working():
+        elif selected_provider == "azure" and _azure_text_api_working():
             AzureTranslator().translate_file(source_lang, target_lang, str(subtitle_path), str(output_path))
         else:
             _translate_subtitles_with_google(source_lang, target_lang, subtitle_path, output_path)
@@ -359,7 +359,6 @@ def _edge_srt_to_voice(
     audio_format: str,
     report: Callable[[float, str], None],
 ) -> None:
-    tts = EdgeTTS()
     subs = pysubs2.load(subtitle_file, encoding="utf-8")
     total_duration = max((line.end for line in subs), default=0)
     combined_audio = AudioSegment.silent(duration=total_duration)
@@ -374,14 +373,40 @@ def _edge_srt_to_voice(
         if not text:
             continue
         segment_path = segments_folder / f"tts_{index:05}.{audio_format}"
-        ok = tts.request_tts(text, str(segment_path), voice_name, 0, int(round((speed_factor - 1.0) * 100)), 0, audio_format)
-        if not ok or not segment_path.exists():
+        if not _edge_request_tts(text, segment_path, voice_name, speed_factor):
             continue
         segment = AudioSegment.from_file(segment_path)
         segment = _fit_segment_to_window(segment, max(1, line.end - line.start))
         combined_audio = combined_audio.overlay(segment, position=line.start)
 
     combined_audio.export(output_file, format=audio_format)
+
+
+def _edge_request_tts(text: str, output_path: Path, voice_name: str, speed_factor: float) -> bool:
+    rate_percent = int(round((speed_factor - 1.0) * 100))
+    rate = f"{rate_percent:+d}%"
+
+    async def save() -> None:
+        communicate = edge_tts.Communicate(text, voice_name, rate=rate)
+        await communicate.save(str(output_path))
+
+    try:
+        asyncio.run(save())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(save())
+        finally:
+            loop.close()
+    return output_path.exists() and output_path.stat().st_size > 0
+
+
+def _azure_text_api_working() -> bool:
+    return bool(
+        os.getenv("AZURE_TRANSLATOR_KEY")
+        and os.getenv("AZURE_TRANSLATOR_ENDPOINT")
+        and os.getenv("AZURE_TRANSLATOR_REGION")
+    )
 
 
 def _fit_segment_to_window(segment: AudioSegment, window_ms: int) -> AudioSegment:
