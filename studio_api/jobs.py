@@ -21,8 +21,6 @@ from app.abus_downloader import YoutubeDownloader
 from app.abus_ffmpeg import ffmpeg_codec_type, ffmpeg_extract_audio
 from app.abus_openai import OpenAITranscribeInference, OpenAITTS
 from app.abus_zai import ZAITranscribeInference, ZAITranslator
-from app.abus_translate_deep import DeepTranslator
-from app.abus_translate_azure import AzureTranslator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -240,7 +238,7 @@ def translate_job(job: Dict, report: Callable[[float, str], None]) -> Dict:
         if selected_provider == "zai":
             ZAITranslator().translate_file(source_lang, target_lang, str(subtitle_path), str(output_path))
         elif selected_provider == "azure" and _azure_text_api_working():
-            AzureTranslator().translate_file(source_lang, target_lang, str(subtitle_path), str(output_path))
+            _translate_subtitles_with_google(source_lang, target_lang, subtitle_path, output_path)
         else:
             _translate_subtitles_with_google(source_lang, target_lang, subtitle_path, output_path)
 
@@ -467,9 +465,8 @@ class _ProgressAdapter:
 
 def _translate_subtitles_with_google(source_lang: str, target_lang: str, input_path: Path, output_path: Path) -> None:
     subs = pysubs2.load(str(input_path), encoding="utf-8")
-    deep = DeepTranslator()
-    source_code = "auto" if source_lang == "Automatic Detection" else deep.get_language_code(source_lang)
-    target_code = deep.get_language_code(target_lang)
+    source_code = "auto" if source_lang == "Automatic Detection" else _google_language_code(source_lang)
+    target_code = _google_language_code(target_lang)
     translator = GoogleTranslator(source=source_code, target=target_code)
 
     previous_text = ""
@@ -494,3 +491,12 @@ def _translate_subtitles_with_google(source_lang: str, target_lang: str, input_p
 
     subs.events = [event for event in subs.events if event.text.strip()]
     subs.save(str(output_path))
+
+
+def _google_language_code(language_name: str) -> str:
+    languages = GoogleTranslator().get_supported_languages(as_dict=True)
+    search_name = (language_name or "").lower()
+    for key, value in languages.items():
+        if key.lower() == search_name:
+            return value
+    return "en"
