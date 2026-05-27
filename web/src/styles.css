@@ -1,0 +1,459 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f6f8;
+  color: #15191f;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #111820;
+  color: #f6f8fb;
+  padding: 24px;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #37c7a1;
+  color: #0b1514;
+  font-weight: 800;
+}
+
+.brand span,
+.topbar p,
+.dropzone span,
+.jobHeader small {
+  display: block;
+  color: #6b7480;
+  font-size: 13px;
+}
+
+.sidebar .brand span {
+  color: #9ba6b2;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+.navItem {
+  height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #bdc7d3;
+  text-align: left;
+  padding: 0 12px;
+}
+
+.navItem.active {
+  background: #1f2a35;
+  color: #ffffff;
+}
+
+.navItem:disabled {
+  opacity: 0.45;
+}
+
+.workspace {
+  padding: 32px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.statusPill {
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #44505c;
+  background: white;
+  font-size: 13px;
+}
+
+.panel,
+.jobPanel,
+.previewPanel,
+.editorGrid,
+.translateToolbar {
+  background: #ffffff;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.dropzone {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 240px;
+  border: 1px dashed #9fb0c2;
+  border-radius: 8px;
+  color: #1d2731;
+  background: #f9fbfc;
+  cursor: pointer;
+}
+
+.dropzone input {
+  display: none;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.youtubeBox {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #b9d9ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f1f7ff, #f6fffb);
+}
+
+.youtubeHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.youtubeHeader strong {
+  display: block;
+  color: #14202b;
+  font-size: 15px;
+}
+
+.youtubeHeader span {
+  color: #657180;
+  font-size: 13px;
+}
+
+.youtubeControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 12px;
+  align-items: end;
+}
+
+.linkIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #e3f6f0;
+  color: #126b59;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #44505c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+select,
+input[type="url"] {
+  height: 42px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: white;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: #167a65;
+}
+
+.mutedText {
+  margin: 0;
+  color: #6b7480;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  border: 0;
+  border-radius: 8px;
+  background: #167a65;
+  color: white;
+  padding: 0 16px;
+  font-weight: 700;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jobPanel {
+  margin-top: 16px;
+}
+
+.jobPanel.compact {
+  padding: 14px 16px;
+}
+
+.jobHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.jobHeader > div {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.jobHeader small {
+  grid-column: 2;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #9da8b5;
+}
+
+.dot.running,
+.dot.queued {
+  background: #d9992f;
+}
+
+.dot.completed {
+  background: #1f9d72;
+}
+
+.dot.failed {
+  background: #c3423f;
+}
+
+.progress {
+  height: 8px;
+  margin: 14px 0;
+  border-radius: 999px;
+  background: #edf1f5;
+  overflow: hidden;
+}
+
+.progress > div {
+  height: 100%;
+  background: #37c7a1;
+  transition: width 180ms ease;
+}
+
+.outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.outputs a {
+  color: #126b59;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.previewPanel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.previewHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+}
+
+.previewHeader label {
+  min-width: 180px;
+}
+
+.previewPanel h2,
+.emptyState h2,
+.panel h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.previewPanel p,
+.emptyState p {
+  margin: 0;
+  color: #6b7480;
+}
+
+.previewPanel video {
+  width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+  background: #0e141b;
+}
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.translateToolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.dubbingControls {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(120px, 0.8fr) minmax(170px, 1fr) minmax(160px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.audioPreview,
+.dubbedVideo {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.dubbedVideo {
+  max-height: 420px;
+  border-radius: 8px;
+  background: #0e141b;
+}
+
+textarea {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  padding: 12px;
+  font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  color: #15191f;
+  background: #fbfdff;
+}
+
+.emptyState {
+  margin-top: 16px;
+}
+
+.exportList {
+  margin-top: 12px;
+}
+
+.dubbingSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  background: #f9fbfc;
+}
+
+.dubbingSummary span {
+  color: #6b7480;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    padding: 16px;
+  }
+
+  nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .workspace {
+    padding: 18px;
+  }
+
+  .topbar,
+  .controls,
+  .youtubeControls,
+  .editorGrid,
+  .translateToolbar,
+  .dubbingControls,
+  .previewHeader,
+  .dubbingSummary {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}

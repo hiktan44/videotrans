@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 from app.abus_ffmpeg import *
 from app.abus_path import *
@@ -28,17 +29,46 @@ def demucs_split_file(input_path: str, output_dir, demucs_model: str, audio_form
     demucs_inst_file = os.path.join(temp_directory, demucs_model, file_name, "no_vocals.wav")
     demucs_vocal_file = os.path.join(temp_directory, demucs_model, file_name, "vocals.wav")
 
-    command = f'python -m demucs.separate -n {demucs_model} --two-stems=vocals "{input_path}" -o "{temp_directory}" {output_option}'
-    command += f' --repo model/demucs'
-    logger.debug(f'[abus:demucs_split_file] {command}')
+    command = [
+        sys.executable,
+        "-m",
+        "demucs.separate",
+        "-n",
+        demucs_model,
+        "--two-stems=vocals",
+        input_path,
+        "-o",
+        temp_directory,
+        output_option,
+        "--repo",
+        os.path.join(path_model_folder(), "demucs"),
+    ]
+    logger.debug(f'[abus:demucs_split_file] {" ".join(command)}')
     
-    with subprocess.Popen(command, text=True, shell=True, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True) as sp:
+    stderr_tail = []
+    with subprocess.Popen(command, text=True, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True) as sp:
         for line in sp.stderr:
             print(f'{line}', end='', flush=True)
+            stderr_tail.append(line.rstrip())
+            stderr_tail = stderr_tail[-20:]
             tokens = [item for item in line.split("%|") if item]
             if len(tokens) < 2:
                 continue
             progress(float(tokens[0]) / 100.0, desc="Demucs")
+        return_code = sp.wait()
+
+    if return_code != 0:
+        raise RuntimeError(
+            "Demucs failed while separating vocals. "
+            + "\n".join(stderr_tail[-8:])
+        )
+
+    missing_files = [file for file in (demucs_inst_file, demucs_vocal_file) if not os.path.exists(file)]
+    if missing_files:
+        raise FileNotFoundError(
+            "Demucs finished without creating expected output files: "
+            + ", ".join(missing_files)
+        )
             
             
     inst_audio_file = os.path.join(output_dir, file_name + f"_{demucs_model}_inst." + audio_format)
@@ -50,4 +80,3 @@ def demucs_split_file(input_path: str, output_dir, demucs_model: str, audio_form
     os.remove(demucs_vocal_file)
 
     return inst_audio_file, vocal_audio_file
-

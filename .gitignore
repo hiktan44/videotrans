@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+.DS_Store
 # *.py[cod]
 *.pyc
 *.pyo
@@ -13,6 +14,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+node_modules/
 downloads/
 eggs/
 .eggs/
@@ -194,3 +196,7 @@ model/f5-tts/voice_15s.zip
 /model/kokoro
 /model/edge-tts
 /model/cosyvoice
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

@@ -18,15 +18,17 @@ class UserConfig:
         self.default_user_config = {
             "asr_engine": "faster-whisper",
             "gradio_language": "Korean",
-            "whisper_model": "large",
-            "faster_whisper_model": "large",
-            "whisper_timestamped_model": "large",
-            "whisperX_model": "large",            
-            "whisper_language": "korean",
+            "whisper_model": "small",
+            "faster_whisper_model": "small",
+            "openai_transcribe_model": "gpt-4o-transcribe-diarize",
+            "zai_transcribe_model": "glm-asr-2512",
+            "whisper_timestamped_model": "small",
+            "whisperX_model": "small",
+            "whisper_language": "Automatic Detection",
             "word_timestamps": True,
             "denoise": False,
             "burn_subtitles": False,
-            "video_quality": "best",
+            "video_quality": "good",
             "audio_format": "flac",
             "demucs_model": "htdemucs",
             "karaoke_mode": "Instrumental",
@@ -48,7 +50,7 @@ class UserConfig:
             "translate_source_language": "English",
             "translate_target_language": "korean",
             "denoise_level" : 0,
-            "whisper_compute_type" : 'default',
+            "whisper_compute_type" : 'int8',
             "whisper_highlight_words" : False,
             "last_folder" : ".",     
             "xtts_language": "Korean",                                
@@ -111,5 +113,3 @@ class UserConfig:
     def set(self, key, value):
         self.user_config[key] = value
         self.save_user_config()
-
-

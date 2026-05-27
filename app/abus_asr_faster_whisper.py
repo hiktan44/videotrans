@@ -178,10 +178,10 @@ class FasterWhisperInference:
                 language=params.lang,
                 task="translate" if params.is_translate and self.current_model_size in self.translatable_models else "transcribe",
                 vad_filter=params.vad_filter,
-                # beam_size=params.beam_size,
-                # log_prob_threshold=params.log_prob_threshold,
-                # no_speech_threshold=params.no_speech_threshold,                
-                # best_of=params.best_of,
+                beam_size=params.beam_size,
+                log_prob_threshold=params.log_prob_threshold,
+                no_speech_threshold=params.no_speech_threshold,                
+                best_of=params.best_of,
                 patience=params.patience,                
                 condition_on_previous_text=params.condition_on_previous_text,
                 temperature=params.temperature,
@@ -225,7 +225,9 @@ class FasterWhisperInference:
             device=self.device,
             model_size_or_path=model_size,
             download_root=os.path.join("model", "faster-whisper"),
-            compute_type=self.current_compute_type
+            compute_type=self.current_compute_type,
+            cpu_threads=min(4, os.cpu_count() or 1),
+            num_workers=1
         )
         
 
@@ -245,6 +247,7 @@ class FasterWhisperInference:
             return subtitles
                  
         try:
+            transcribed_segments = FasterWhisperInference._clean_repeated_segments(transcribed_segments)
             subs = pysubs2.load_from_whisper(transcribed_segments)
 
             vtt_path = path_change_ext(input_path, '.vtt')        
@@ -286,6 +289,58 @@ class FasterWhisperInference:
 
         finally:
             return subtitles
+
+    @staticmethod
+    def _clean_repeated_segments(transcribed_segments: list) -> list:
+        cleaned = []
+        last_text = ""
+        repeat_count = 0
+
+        for segment in transcribed_segments:
+            text = (segment.get("text") or "").strip()
+            normalized = " ".join(text.lower().split())
+            duration = float(segment.get("end", 0) or 0) - float(segment.get("start", 0) or 0)
+
+            if normalized and normalized == last_text:
+                repeat_count += 1
+                if repeat_count >= 2 or duration <= 2.5:
+                    continue
+            else:
+                repeat_count = 0
+
+            segment["text"] = FasterWhisperInference._collapse_repeated_phrases(text)
+            cleaned.append(segment)
+            last_text = normalized
+
+        return cleaned
+
+    @staticmethod
+    def _collapse_repeated_phrases(text: str) -> str:
+        words = text.split()
+        if len(words) < 3:
+            return text
+
+        collapsed = []
+        i = 0
+        while i < len(words):
+            phrase_len = 1
+            replaced = False
+            while phrase_len <= 4 and i + phrase_len * 3 <= len(words):
+                phrase = words[i:i + phrase_len]
+                repeats = 1
+                while words[i + repeats * phrase_len:i + (repeats + 1) * phrase_len] == phrase:
+                    repeats += 1
+                if repeats >= 3:
+                    collapsed.extend(phrase)
+                    i += repeats * phrase_len
+                    replaced = True
+                    break
+                phrase_len += 1
+            if not replaced:
+                collapsed.append(words[i])
+                i += 1
+
+        return " ".join(collapsed)
     
 
         

@@ -4,6 +4,8 @@ from src.config import UserConfig
 from app.abus_path import *
 from app.abus_translate_deep import *
 from app.abus_translate_azure import *
+from app.abus_openai import *
+from app.abus_zai import *
 # from app.abus_live import *
 from app.abus_genuine import *
 
@@ -20,7 +22,14 @@ class GradioTranslate:
     def __init__(self, user_config: UserConfig):
         self.user_config = user_config
 
-        self.translator = AzureTranslator() if azure_text_api_working() == True else DeepTranslator()
+        if azure_text_api_working() == True:
+            self.translator = AzureTranslator()
+        elif zai_api_available():
+            self.translator = ZAITranslator()
+        elif openai_api_available():
+            self.translator = OpenAITranslator()
+        else:
+            self.translator = DeepTranslator()
 
             
     def gradio_workspace_folder(self):
@@ -133,4 +142,3 @@ class GradioTranslate:
             gr.Warning(f'{e}')
             return None            
             
-

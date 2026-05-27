@@ -1,6 +1,10 @@
 
 import json
 import asyncio
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 from src.config import UserConfig
 from app.abus_downloader import *
@@ -18,6 +22,8 @@ from app.abus_asr_whisperx import *
 
 from app.abus_translate_deep import *
 from app.abus_translate_azure import *
+from app.abus_openai import *
+from app.abus_zai import *
 
 from app.abus_voice_ms import *
 from app.abus_voice_celeb import *
@@ -47,6 +53,7 @@ class GradioGulliver:
         self.downloader = YoutubeDownloader()
         self.ms_voice_manager = MSVoiceManager(self.user_config.get('ms_language', "English"))
         self.edge_tts = AzureTTS() if azure_text_api_working() else EdgeTTS()
+        self.openai_tts = OpenAITTS()
         
         self.f5_tts = F5TTS()
         self.cosy_tts = CosyVoiceInference()
@@ -54,7 +61,14 @@ class GradioGulliver:
         self.kokoro_tts = KokoroTTS()
         self.kokoro_vm = KokoroVoiceManager()
 
-        self.translator = AzureTranslator() if azure_text_api_working() == True else DeepTranslator()
+        if azure_text_api_working() == True:
+            self.translator = AzureTranslator()
+        elif zai_api_available():
+            self.translator = ZAITranslator()
+        elif openai_api_available():
+            self.translator = OpenAITranslator()
+        else:
+            self.translator = DeepTranslator()
         
         asr_engine = self.user_config.get("asr_engine", 'faster-whisper')
         self.whisper_inf = self.switch_case(asr_engine)   
@@ -69,7 +83,9 @@ class GradioGulliver:
             'faster-whisper': lambda: FasterWhisperInference(),
             'whisper': lambda: WhisperInference(),
             'whisper-timestamped': lambda: WhisperTimestampedInference(),
-            'whisperX': lambda: WhisperXInference()
+            'whisperX': lambda: WhisperXInference(),
+            'openai-transcribe': lambda: OpenAITranscribeInference(),
+            'zai-transcribe': lambda: ZAITranscribeInference()
         }
         return switch_dict.get(case, lambda: FasterWhisperInference())()    
             
@@ -82,7 +98,7 @@ class GradioGulliver:
     
     
     def get_asr_engines(self):
-        return ['faster-whisper', 'whisper', 'whisper-timestamped', 'whisperX']
+        return ['faster-whisper', 'openai-transcribe', 'zai-transcribe', 'whisper', 'whisper-timestamped', 'whisperX']
     
     def update_whisper_models(self, asr_engine):
         whisper_inf = self.switch_case(asr_engine)       
@@ -157,7 +173,7 @@ class GradioGulliver:
     
 
     def gradio_whisper_default(self):
-        return ["large", "english", "float16", 0]
+        return ["small", "Automatic Detection", "int8", 0]
 
     # return Video, Audio, File    
     def gradio_whisper(self, 
@@ -171,15 +187,32 @@ class GradioGulliver:
         
         try:                          
             source_audio = self.fm.get_split("Source.audio")
+            if not source_audio or not os.path.exists(source_audio):
+                raise ValueError("Audio is not ready yet. Please wait until the media upload/download finishes, then run Whisper again.")
+
             denoise_inst_path, denoise_vocal_path = self._denoise(source_audio, denoise_level)
             input_path = denoise_vocal_path if os.path.exists(denoise_vocal_path) else source_audio
+            if not input_path or not os.path.exists(input_path):
+                raise ValueError("Audio file was not created. Please upload/download the media again.")
+
+            supported_compute_types = self.get_whisper_compute_types()
+            if compute_type not in supported_compute_types:
+                fallback_compute_type = 'int8' if 'int8' in supported_compute_types else supported_compute_types[0]
+                logger.warning(
+                    f"[gradio_gulliver.py] gradio_whisper - Unsupported compute_type={compute_type}; "
+                    f"falling back to {fallback_compute_type}"
+                )
+                compute_type = fallback_compute_type
 
             params = WhisperParameters(model_size=modelName, 
-                                       lang=whisper_language.lower(), 
+                                       lang=whisper_language if whisper_language == "Automatic Detection" else whisper_language.lower(), 
                                        compute_type=compute_type)   
             
-            self.whisper_inf = self.switch_case(asr_engine)                            
-            subtitles = self.whisper_inf.transcribe_file(input_path, params, False, gr.Progress())  # highlight_words=False
+            if asr_engine == 'faster-whisper':
+                subtitles = self._transcribe_faster_whisper_subprocess(input_path, params)
+            else:
+                self.whisper_inf = self.switch_case(asr_engine)
+                subtitles = self.whisper_inf.transcribe_file(input_path, params, False, gr.Progress())  # highlight_words=False
             self.fm.set_subtitles(subtitles, whisper_language, source_audio) 
             srt_file = self.fm.get_subtitle('.srt')
             srt_string = self._read_file(srt_file)
@@ -196,6 +229,72 @@ class GradioGulliver:
             logger.error(f"[gradio_gulliver.py] gradio_upload_source - Error transcribing file: {e}")
             gr.Warning(f'{e}')
             return None, None, None, None    
+
+    def _transcribe_faster_whisper_subprocess(self, input_path, params):
+        worker_path = Path(__file__).resolve().parent / "asr_worker.py"
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as output_file:
+            output_json = output_file.name
+
+        cmd = [
+            sys.executable,
+            str(worker_path),
+            "--input",
+            input_path,
+            "--output",
+            output_json,
+            "--model",
+            params.model_size,
+            "--language",
+            params.lang,
+            "--compute-type",
+            params.compute_type,
+        ]
+
+        env = os.environ.copy()
+        env.setdefault("OMP_NUM_THREADS", "4")
+        env.setdefault("MKL_NUM_THREADS", "4")
+        env.setdefault("CT2_USE_EXPERIMENTAL_PACKED_GEMM", "0")
+
+        print(
+            f"[voice-pro gulliver asr] starting worker model={params.model_size} "
+            f"compute={params.compute_type} input={input_path}",
+            flush=True,
+        )
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(Path(__file__).resolve().parent.parent),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError("Transcribe timed out after 600 seconds") from exc
+
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        if stdout:
+            print(f"[voice-pro gulliver asr] worker stdout:\n{stdout}", flush=True)
+        if stderr:
+            print(f"[voice-pro gulliver asr] worker stderr:\n{stderr}", flush=True)
+
+        try:
+            with open(output_json, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        finally:
+            try:
+                os.remove(output_json)
+            except OSError:
+                pass
+
+        if result.returncode != 0 or payload.get("error"):
+            raise RuntimeError(payload.get("traceback") or payload.get("error") or stderr or stdout)
+
+        subtitles = payload.get("subtitles") or []
+        print(f"[voice-pro gulliver asr] worker finished subtitles={len(subtitles)}", flush=True)
+        return subtitles
 
     
     # return inst, vocal    
@@ -242,7 +341,7 @@ class GradioGulliver:
                                         
     
     def gradio_translate(self,
-                        source_lang, transcription_text, target_lang):
+                        source_lang, transcription_text, target_lang, subtitle_mode="Translated subtitles"):
         if len(transcription_text) < 1:
             logger.warning(f"[gradio_gulliver.py] gradio_translate - no actions")
             return None, None, None, self.fm.get_all_files() 
@@ -266,7 +365,7 @@ class GradioGulliver:
         source_video_file = self.fm.get_split("Source.video")
         source_audio_file = self.fm.get_split("Source.audio")
         
-        output_video_path = (source_video_file, translation_file) if source_video_file and translation_file else source_video_file
+        output_video_path = self._select_output_video(source_video_file, translation_file, subtitle_mode)
         output_audio_path = source_audio_file
         output_translation_text = self._read_file(translation_file) if translation_file else translation_text
         return output_video_path, output_audio_path, output_translation_text, self.fm.get_all_files()    
@@ -315,6 +414,22 @@ class GradioGulliver:
         except Exception as e:
             return False     
 
+    @staticmethod
+    def subtitle_modes():
+        return ["Translated subtitles", "Original subtitles", "No subtitles"]
+
+    def _select_output_video(self, video_file, translated_subtitle_file=None, subtitle_mode="Translated subtitles"):
+        if not video_file:
+            return None
+        if subtitle_mode == "No subtitles":
+            return video_file
+        if subtitle_mode == "Original subtitles":
+            source_subtitle = self.fm.get_subtitle(".srt")
+            return (video_file, source_subtitle) if source_subtitle else video_file
+        if translated_subtitle_file:
+            return (video_file, translated_subtitle_file)
+        return video_file
+
 
            
 
@@ -324,7 +439,8 @@ class GradioGulliver:
     
     def gradio_edge_dubbing(self, 
                             translation_text, voice_name: str, 
-                            semitones, speed_factor, volume_factor, audio_format: str):
+                            semitones, speed_factor, volume_factor, audio_format: str,
+                            subtitle_mode="Translated subtitles"):
                          
         logger.debug(f"[gradio_gulliver.py] gradio_edge_dubbing - \
                     voice_name = {voice_name}, \
@@ -357,7 +473,7 @@ class GradioGulliver:
             aidub_video_file, mixed_audio_file = self._edge_tts_text(translation_text, 
                                                 voice_name, semitones, speed_factor, volume_factor, audio_format)
 
-        output_video_path = (aidub_video_file, translation_file) if aidub_video_file and translation_file else aidub_video_file
+        output_video_path = self._select_output_video(aidub_video_file, translation_file, subtitle_mode)
         output_audio_path = mixed_audio_file
         return output_video_path, output_audio_path, self.fm.get_all_files()      
                             
@@ -437,6 +553,65 @@ class GradioGulliver:
             return None, None 
 
 
+    # OpenAI TTS
+
+    def gradio_openai_default(self):
+        return ["marin", 1.0, "Natural, clear Turkish dubbing voice. Keep a steady documentary narration style."]
+
+    def gradio_openai_dubbing(self, translation_text, voice_name: str, speed_factor, instructions, audio_format: str, subtitle_mode="Translated subtitles"):
+        if len(translation_text) < 1:
+            logger.warning(f"[gradio_gulliver.py] gradio_openai_dubbing - no actions")
+            return None, None, self.fm.get_all_files()
+
+        try:
+            source_audio_file = self.fm.get_split("Source.audio")
+            target_voice = voice_name or "marin"
+            aidub_audio_file = path_add_postfix(source_audio_file, f"_openai_{target_voice}")
+
+            translation_file = None
+            if self._is_subtitle_format(translation_text):
+                subs = pysubs2.SSAFile.from_string(translation_text)
+                translation_file = os.path.join(path_translate_folder(), path_new_filename(f".{subs.format}"))
+                subs.save(translation_file)
+                self.openai_tts.srt_to_voice(
+                    translation_file,
+                    aidub_audio_file,
+                    target_voice,
+                    speed_factor,
+                    audio_format,
+                    instructions,
+                )
+            else:
+                self.openai_tts.text_to_voice(
+                    translation_text,
+                    aidub_audio_file,
+                    target_voice,
+                    speed_factor,
+                    audio_format,
+                    instructions,
+                )
+
+            self.fm.set_dubbing(f"OpenAI-{target_voice}.audio", aidub_audio_file)
+
+            mixed_audio_file = path_add_postfix(source_audio_file, f"_mixed_openai_{target_voice}")
+            denoise_inst_path, _ = self._denoise(source_audio_file, 1)
+            ffmpeg_mix_audio(aidub_audio_file, denoise_inst_path, mixed_audio_file, 0, 0, audio_format)
+
+            aidub_video_file = None
+            if self.has_video:
+                source_video_file = self.fm.get_split("Source.video")
+                aidub_video_file = path_add_postfix(source_video_file, f"_openai_{target_voice}")
+                ffmpeg_replace_audio(source_video_file, mixed_audio_file, aidub_video_file)
+                self.fm.set_dubbing(f"OpenAI-{target_voice}.video", aidub_video_file)
+
+            output_video_path = self._select_output_video(aidub_video_file, translation_file, subtitle_mode)
+            return output_video_path, mixed_audio_file, self.fm.get_all_files()
+        except Exception as e:
+            logger.error(f"[gradio_gulliver.py] gradio_openai_dubbing - Error : {e}")
+            gr.Warning(f'{e}')
+            return None, None, self.fm.get_all_files()
+
+
     # F5-TTS
 
     def gradio_f5_default(self):
@@ -449,7 +624,8 @@ class GradioGulliver:
     def gradio_f5_dubbing_single(self, 
                                  translation_text, 
                                  celeb_name, celeb_audio, celeb_transcript, 
-                                 model_choice, speed_factor, audio_format: str):
+                                 model_choice, speed_factor, audio_format: str,
+                                 subtitle_mode="Translated subtitles"):
         
         logger.debug(f"[gradio_gulliver.py] gradio_f5_dubbing_single - \
                     celeb_name = {celeb_name}, celeb_audio = {celeb_audio}, \
@@ -477,7 +653,7 @@ class GradioGulliver:
             aidub_video_file, mixed_audio_file = self._f5_tts_single(translation_text, 
                                                 celeb_name, celeb_audio, celeb_transcript, model_choice, speed_factor, audio_format)
 
-        output_video_path = (aidub_video_file, translation_file) if aidub_video_file and translation_file else aidub_video_file
+        output_video_path = self._select_output_video(aidub_video_file, translation_file, subtitle_mode)
         output_audio_path = mixed_audio_file
         return output_video_path, output_audio_path, self.fm.get_all_files()                   
                   
@@ -523,7 +699,8 @@ class GradioGulliver:
     def gradio_cosy_dubbing(self, 
                         translation_text, 
                         celeb_name, celeb_audio, celeb_transcript, 
-                        mode_choice, speed_factor, audio_format: str):
+                        mode_choice, speed_factor, audio_format: str,
+                        subtitle_mode="Translated subtitles"):
         if len(translation_text) < 1:
             logger.warning(f"[gradio_gulliver.py] gradio_f5_dubbing_single - no actions")
             return None, None, self.fm.get_all_files() 
@@ -546,7 +723,7 @@ class GradioGulliver:
             aidub_video_file, mixed_audio_file = self._cosy_tts_single(translation_text, 
                                                 celeb_name, celeb_audio, celeb_transcript, mode_choice, speed_factor, audio_format)
 
-        output_video_path = (aidub_video_file, translation_file) if aidub_video_file and translation_file else aidub_video_file
+        output_video_path = self._select_output_video(aidub_video_file, translation_file, subtitle_mode)
         output_audio_path = mixed_audio_file
         return output_video_path, output_audio_path, self.fm.get_all_files()        
 
@@ -592,7 +769,8 @@ class GradioGulliver:
     
     def gradio_kokoro_dubbing(self, 
                             translation_text, language_name, voice_name: str, 
-                            speed_factor, audio_format: str):
+                            speed_factor, audio_format: str,
+                            subtitle_mode="Translated subtitles"):
                          
         logger.debug(f"[gradio_gulliver.py] gradio_kokoro_dubbing - \
                     language_name = {language_name}, voice_name = {voice_name}, \
@@ -624,7 +802,7 @@ class GradioGulliver:
                                                 language_name, voice_name, speed_factor, audio_format)
         
         
-        output_video_path = (aidub_video_file, translation_file) if aidub_video_file and translation_file else aidub_video_file
+        output_video_path = self._select_output_video(aidub_video_file, translation_file, subtitle_mode)
         output_audio_path = mixed_audio_file
         return output_video_path, output_audio_path, self.fm.get_all_files()        
                      

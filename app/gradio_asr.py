@@ -1,5 +1,11 @@
 
 
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
 from src.config import UserConfig
 
 from app.abus_downloader import *
@@ -12,6 +18,8 @@ from app.abus_asr_faster_whisper import *
 from app.abus_asr_whisper import *
 from app.abus_asr_whisper_timestamped import *
 from app.abus_asr_whisperx import *
+from app.abus_openai import *
+from app.abus_zai import *
 
 from src.i18n.i18n import I18nAuto
 i18n = I18nAuto()
@@ -37,7 +45,9 @@ class GradioASR:
             'faster-whisper': lambda: FasterWhisperInference(),
             'whisper': lambda: WhisperInference(),
             'whisper-timestamped': lambda: WhisperTimestampedInference(),
-            'whisperX': lambda: WhisperXInference()            
+            'whisperX': lambda: WhisperXInference(),
+            'openai-transcribe': lambda: OpenAITranscribeInference(),
+            'zai-transcribe': lambda: ZAITranscribeInference()
         }
         return switch_dict.get(case, lambda: FasterWhisperInference())()    
     
@@ -53,7 +63,7 @@ class GradioASR:
     #     cmd_open_explorer(self.mdxnet_models_dir)
         
     def get_asr_engines(self):
-        return ['faster-whisper', 'whisper', 'whisper-timestamped', 'whisperX']        
+        return ['faster-whisper', 'openai-transcribe', 'zai-transcribe', 'whisper', 'whisper-timestamped', 'whisperX']        
     
     def update_whisper_models(self, asr_engine):
         whisper_inf = self.switch_case(asr_engine)       
@@ -123,7 +133,7 @@ class GradioASR:
         return True
     
     def gradio_whisper_default(self):
-        return ["large", "english", "float16", False, 0]
+        return ["small", "Automatic Detection", "int8", False, 0]
    
     def transcribe(self,
                   asr_engine, modelName, whisper_language, compute_type, highlight_words, denoise_level):
@@ -136,16 +146,34 @@ class GradioASR:
         
         try: 
             source_audio = self.fm.get_split("Source.audio")
+            if not source_audio or not os.path.exists(source_audio):
+                raise ValueError("Audio is not ready yet. Please wait until the media upload/download finishes, then run Whisper again.")
+
             denoise_inst_path, denoise_vocal_path = self._denoise(source_audio, denoise_level)
             input_path = denoise_vocal_path if os.path.exists(denoise_vocal_path) else source_audio
+            if not input_path or not os.path.exists(input_path):
+                raise ValueError("Audio file was not created. Please upload/download the media again.")
+
             logger.debug(f'transcribe : input_path = {input_path}')
+
+            supported_compute_types = self.get_whisper_compute_types()
+            if compute_type not in supported_compute_types:
+                fallback_compute_type = 'int8' if 'int8' in supported_compute_types else supported_compute_types[0]
+                logger.warning(
+                    f"[gradio_asr.py] transcribe - Unsupported compute_type={compute_type}; "
+                    f"falling back to {fallback_compute_type}"
+                )
+                compute_type = fallback_compute_type
             
             params = WhisperParameters(model_size=modelName, 
-                                       lang=whisper_language.lower(), 
+                                       lang=whisper_language if whisper_language == "Automatic Detection" else whisper_language.lower(), 
                                        compute_type=compute_type)
             
-            self.whisper_inf = self.switch_case(asr_engine)                            
-            subtitles = self.whisper_inf.transcribe_file(input_path, params, highlight_words, gr.Progress())
+            if asr_engine == 'faster-whisper':
+                subtitles = self._transcribe_faster_whisper_subprocess(input_path, params, highlight_words)
+            else:
+                self.whisper_inf = self.switch_case(asr_engine)
+                subtitles = self.whisper_inf.transcribe_file(input_path, params, highlight_words, gr.Progress())
             self.fm.set_subtitles(subtitles, whisper_language, source_audio) 
             srt_file = self.fm.get_subtitle('.srt')
             srt_string = self._read_subtitle_file(srt_file)
@@ -163,6 +191,74 @@ class GradioASR:
             logger.error(f"[gradio_asr.py] transcribe - An error occurred: {e}")
             gr.Warning(f'{e}')
             return None, None, None            
+
+    def _transcribe_faster_whisper_subprocess(self, input_path, params, highlight_words):
+        worker_path = Path(__file__).resolve().parent / "asr_worker.py"
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as output_file:
+            output_json = output_file.name
+
+        cmd = [
+            sys.executable,
+            str(worker_path),
+            "--input",
+            input_path,
+            "--output",
+            output_json,
+            "--model",
+            params.model_size,
+            "--language",
+            params.lang,
+            "--compute-type",
+            params.compute_type,
+        ]
+        if highlight_words:
+            cmd.append("--highlight-words")
+
+        env = os.environ.copy()
+        env.setdefault("OMP_NUM_THREADS", "4")
+        env.setdefault("MKL_NUM_THREADS", "4")
+        env.setdefault("CT2_USE_EXPERIMENTAL_PACKED_GEMM", "0")
+
+        print(
+            f"[voice-pro asr] starting worker model={params.model_size} "
+            f"compute={params.compute_type} input={input_path}",
+            flush=True,
+        )
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(Path(__file__).resolve().parent.parent),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError("Transcribe timed out after 600 seconds") from exc
+
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        if stdout:
+            print(f"[voice-pro asr] worker stdout:\n{stdout}", flush=True)
+        if stderr:
+            print(f"[voice-pro asr] worker stderr:\n{stderr}", flush=True)
+
+        try:
+            with open(output_json, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        finally:
+            try:
+                os.remove(output_json)
+            except OSError:
+                pass
+
+        if result.returncode != 0 or payload.get("error"):
+            raise RuntimeError(payload.get("traceback") or payload.get("error") or stderr or stdout)
+
+        subtitles = payload.get("subtitles") or []
+        print(f"[voice-pro asr] worker finished subtitles={len(subtitles)}", flush=True)
+        return subtitles
                 
     # return inst, vocal    
     def _denoise(self, source_audio, denoise_level=2):

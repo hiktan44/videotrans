@@ -1,28 +1,35 @@
 import copy
 from pathlib import Path
+from urllib.parse import quote
 
 import gradio as gr
 import torch
 import yaml
+from gradio.themes.utils import fonts
 # from transformers import is_torch_xpu_available
 
 # import extensions
 import src.shared as shared
 
     
-with open(Path(__file__).resolve().parent / 'css/NotoSans/stylesheet.css', 'r') as f:
+src_dir = Path(__file__).resolve().parent
+noto_sans_dir = src_dir / 'css' / 'NotoSans'
+noto_sans_url = f"/gradio_api/file={quote(str(noto_sans_dir), safe='/')}"
+
+with open(noto_sans_dir / 'stylesheet.css', 'r') as f:
     css = f.read()
-with open(Path(__file__).resolve().parent / 'css/main.css', 'r') as f:
+css = css.replace("file/css/NotoSans", noto_sans_url)
+with open(src_dir / 'css/main.css', 'r') as f:
     css += f.read()
-with open(Path(__file__).resolve().parent / 'js/main.js', 'r') as f:
+with open(src_dir / 'js/main.js', 'r') as f:
     js = f.read()
-with open(Path(__file__).resolve().parent / 'js/save_files.js', 'r') as f:
+with open(src_dir / 'js/save_files.js', 'r') as f:
     save_files_js = f.read()
-with open(Path(__file__).resolve().parent / 'js/switch_tabs.js', 'r') as f:
+with open(src_dir / 'js/switch_tabs.js', 'r') as f:
     switch_tabs_js = f.read()
-with open(Path(__file__).resolve().parent / 'js/show_controls.js', 'r') as f:
+with open(src_dir / 'js/show_controls.js', 'r') as f:
     show_controls_js = f.read()
-with open(Path(__file__).resolve().parent / 'js/update_big_picture.js', 'r') as f:
+with open(src_dir / 'js/update_big_picture.js', 'r') as f:
     update_big_picture_js = f.read()    
 
 refresh_symbol = '🔄'
@@ -30,8 +37,8 @@ delete_symbol = '🗑️'
 save_symbol = '💾'
 
 theme = gr.themes.Default(
-    font=['Noto Sans', 'Helvetica', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-    font_mono=['IBM Plex Mono', 'ui-monospace', 'Consolas', 'monospace'],
+    font=fonts.LocalFont("IBM Plex Sans"),
+    font_mono=fonts.LocalFont("IBM Plex Mono"),
 ).set(
     border_color_primary='#c5c5d2',
     button_large_padding='6px 12px',

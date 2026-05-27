@@ -5,6 +5,10 @@ import platform
 from pathlib import Path
 import random
 
+os.environ.setdefault("OMP_NUM_THREADS", "4")
+os.environ.setdefault("MKL_NUM_THREADS", "4")
+os.environ.setdefault("CT2_USE_EXPERIMENTAL_PACKED_GEMM", "0")
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
@@ -62,7 +66,10 @@ from app.tab_live_translate import live_translate_tab
 def create_ui(user_config: UserConfig):
     # css/js strings
     css = ui.css
-    js = ui.js
+    js = ""
+    allowed_paths = [
+        str(Path(__file__).resolve().parent.parent / "src" / "css" / "NotoSans"),
+    ]
     
     system = platform.system()    
 
@@ -110,7 +117,60 @@ def create_ui(user_config: UserConfig):
         
         
         gradio_interface.load(None, None, None, js="() => document.getElementsByTagName('body')[0].classList.add('dark')")
-        gradio_interface.load(None, None, None, js=f"() => {{{js}}}")
+        if js:
+            gradio_interface.load(None, None, None, js=f"() => {{{js}}}")
+
+        for fn in gradio_interface.fns.values():
+            fn.show_api = False
+            fn.api_name = False
+        for dependency in gradio_interface.config.get("dependencies", []):
+            dependency["show_api"] = False
+            dependency["api_name"] = False
+            dependency.pop("api_info", None)
+            dependency.pop("api_info_as_input", None)
+            dependency.pop("api_info_as_output", None)
+
+        def frontend_api_info(all_endpoints=False):
+            unnamed_endpoints = {}
+            for dependency in gradio_interface.config.get("dependencies", []):
+                dep_id = dependency.get("id")
+                if dep_id is None or not dependency.get("backend_fn"):
+                    continue
+
+                parameters = []
+                for index, component_id in enumerate(dependency.get("inputs", [])):
+                    parameters.append({
+                        "label": f"param_{index}",
+                        "parameter_name": f"param_{index}",
+                        "parameter_has_default": True,
+                        "parameter_default": None,
+                        "type": {"type": "object"},
+                        "python_type": {"type": "any", "description": ""},
+                        "component": "Api",
+                        "example_input": None,
+                    })
+
+                returns = []
+                for index, component_id in enumerate(dependency.get("outputs", [])):
+                    returns.append({
+                        "label": f"value_{index}",
+                        "type": {"type": "object"},
+                        "python_type": {"type": "any", "description": ""},
+                        "component": "Api",
+                    })
+
+                unnamed_endpoints[str(dep_id)] = {
+                    "parameters": parameters,
+                    "returns": returns,
+                    "show_api": False,
+                }
+
+            return {
+                "named_endpoints": {},
+                "unnamed_endpoints": unnamed_endpoints,
+            }
+
+        gradio_interface.get_api_info = frontend_api_info
                     
 
     if system == "Windows":
@@ -118,10 +178,21 @@ def create_ui(user_config: UserConfig):
             share=False,
             server_name=None, 
             server_port=7870,
-            inbrowser=True
+            inbrowser=True,
+            show_api=False,
+            allowed_paths=allowed_paths,
+            pwa=True
         )
     elif system == "Linux" or system == "Darwin":  # Linux or macOS
-        gradio_interface.launch()
+        gradio_interface.launch(
+            share=False,
+            server_name="127.0.0.1",
+            server_port=7870,
+            show_error=True,
+            show_api=False,
+            allowed_paths=allowed_paths,
+            pwa=True
+        )
     else:
         print(f"Unsupported systems: {system}")
 

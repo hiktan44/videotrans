@@ -68,11 +68,6 @@ class DeepTranslator:
         return final_text
 
     def translate_file(self, source_lang: str, target_lang: str, subtitle_file_path: str, output_file_path: str, progress=gr.Progress()):
-        tts_source_file = path_add_postfix(subtitle_file_path, f"-{source_lang}", ".srt")
-        
-        # AbusText.process_subtitle_for_tts(subtitle_file_path, tts_source_file)
-        AbusSpacy.process_subtitle_for_tts(subtitle_file_path, tts_source_file)
-        
         source_code = self.get_language_code(source_lang)
         target_code = self.get_language_code(target_lang)
 
@@ -80,20 +75,32 @@ class DeepTranslator:
         translator = GoogleTranslator(source=source_code, target=target_code)
         logger.debug(f"[abus_translate_deep.py] translate_file {source_code}: {subtitle_file_path} -> {target_code}: {output_file_path}")
 
-        # Load subtitles using pysubs2
-        full_subs = pysubs2.load(tts_source_file)
+        # Keep the original subtitle timings during translation. TTS-specific
+        # splitting is handled later by the TTS engines.
+        full_subs = pysubs2.load(subtitle_file_path, encoding="utf-8")
         subs = full_subs
+        previous_text = ""
+        previous_repeats = 0
         
-        # 구두점이 없는 언어의 경우 각 자막을 개별적으로 번역
         for event in progress.tqdm(subs, desc='Translate...'):
             if not event.text:
                 continue
                 
             text = event.plaintext
+            normalized = self._normalize_text(text)
+            if normalized == previous_text:
+                previous_repeats += 1
+                if previous_repeats >= 2:
+                    event.text = ""
+                    continue
+            else:
+                previous_repeats = 0
+                previous_text = normalized
+
             try:
                 translated_text = translator.translate(text)
                 if translated_text:
-                    event.text = translated_text
+                    event.text = self._collapse_repeated_phrases(translated_text)
                     logger.debug(f"[abus_translate_deep.py] translate_file : text       - {text}")
                     logger.debug(f"[abus_translate_deep.py] translate_file : translated - {translated_text}")                        
                 else:
@@ -102,8 +109,39 @@ class DeepTranslator:
                 logger.error(f"Translation error for text '{text}': {e}")
                 # 에러 발생 시 원본 텍스트 유지
 
-        # Save the translated subtitles
+        subs.events = [event for event in subs.events if event.text.strip()]
         subs.save(output_file_path)   
-        cmd_delete_file(tts_source_file)  
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return re.sub(r"\W+", " ", text.lower()).strip()
+
+    @staticmethod
+    def _collapse_repeated_phrases(text: str) -> str:
+        words = text.split()
+        if len(words) < 3:
+            return text
+
+        collapsed = []
+        i = 0
+        while i < len(words):
+            replaced = False
+            for phrase_len in range(1, 5):
+                if i + phrase_len * 3 > len(words):
+                    continue
+                phrase = words[i:i + phrase_len]
+                repeats = 1
+                while words[i + repeats * phrase_len:i + (repeats + 1) * phrase_len] == phrase:
+                    repeats += 1
+                if repeats >= 3:
+                    collapsed.extend(phrase)
+                    i += repeats * phrase_len
+                    replaced = True
+                    break
+            if not replaced:
+                collapsed.append(words[i])
+                i += 1
+
+        return " ".join(collapsed)
 
             

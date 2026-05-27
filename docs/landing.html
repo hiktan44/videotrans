@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice-Pro — AI Ses & Video Platformu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1e293b;overflow-x:hidden}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.05);transition:box-shadow .3s}
+nav.scrolled{box-shadow:0 1px 20px rgba(0,0,0,.06)}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 24px}
+.nav-brand{font-weight:800;font-size:1.25rem;background:linear-gradient(135deg,#6366f1,#d946ef);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.nav-links{display:flex;gap:28px;list-style:none}
+.nav-links a{text-decoration:none;color:#64748b;font-weight:500;font-size:.9rem;transition:color .25s;position:relative}
+.nav-links a:hover{color:#6366f1}
+.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;background:#6366f1;border-radius:2px;transition:width .25s}
+.nav-links a:hover::after{width:100%}
+.nav-cta{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff!important;padding:8px 22px;border-radius:10px;font-weight:600;font-size:.85rem;text-decoration:none;transition:transform .25s,box-shadow .25s}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.35)}
+.nav-cta::after{display:none!important}
+.mobile-toggle{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px}
+.mobile-toggle span{width:22px;height:2px;background:#334155;border-radius:2px;transition:.3s}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 24px 80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,.08) 0%,transparent 70%);border-radius:50%;animation:floatBlob 8s ease-in-out infinite}
+.hero::after{content:'';position:absolute;bottom:-150px;left:-150px;width:500px;height:500px;background:radial-gradient(circle,rgba(217,70,239,.06) 0%,transparent 70%);border-radius:50%;animation:floatBlob 10s ease-in-out infinite reverse}
+@keyframes floatBlob{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,-30px) scale(1.05)}}
+.hero-content{position:relative;z-index:2;max-width:800px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(217,70,239,.08));border:1px solid rgba(99,102,241,.15);padding:8px 20px;border-radius:40px;font-size:.82rem;font-weight:600;color:#6366f1;margin-bottom:28px;animation:fadeDown .8s ease-out}
+.hero-badge .dot{width:8px;height:8px;background:#22c55e;border-radius:50%;animation:pulse 2s infinite}
+.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:900;line-height:1.08;letter-spacing:-2px;margin-bottom:20px;animation:fadeDown .8s ease-out .1s backwards}
+.hero h1 .gradient{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 30%,#d946ef 60%,#f43f5e 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:clamp(1rem,2vw,1.25rem);color:#64748b;line-height:1.7;max-width:600px;margin:0 auto 36px;font-weight:300;animation:fadeDown .8s ease-out .2s backwards}
+.hero-buttons{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;animation:fadeDown .8s ease-out .3s backwards}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 32px;border-radius:12px;font-weight:600;font-size:.95rem;text-decoration:none;transition:all .3s;cursor:pointer;border:none}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 4px 20px rgba(99,102,241,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(99,102,241,.4)}
+.btn-secondary{background:#fff;color:#334155;border:1.5px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.btn-secondary:hover{border-color:#6366f1;color:#6366f1;transform:translateY(-2px);box-shadow:0 4px 16px rgba(99,102,241,.1)}
+
+/* ── STATS ── */
+.stats{display:flex;justify-content:center;gap:50px;padding:0 24px 80px;flex-wrap:wrap}
+.stat-item{text-align:center;animation:fadeUp .6s ease-out backwards}
+.stat-item:nth-child(2){animation-delay:.1s}
+.stat-item:nth-child(3){animation-delay:.2s}
+.stat-item:nth-child(4){animation-delay:.3s}
+.stat-num{font-size:2.8rem;font-weight:900;letter-spacing:-1px}
+.stat-label{font-size:.82rem;color:#94a3b8;font-weight:500;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── FEATURES ── */
+.section{padding:80px 24px}
+.section-header{text-align:center;margin-bottom:56px}
+.section-tag{display:inline-block;padding:6px 16px;border-radius:20px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-1px;margin-bottom:14px}
+.section-desc{color:#64748b;font-size:1.05rem;max-width:550px;margin:0 auto;font-weight:300;line-height:1.7}
+
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;max-width:1200px;margin:0 auto}
+.feature-card{background:#fff;border:1px solid #f1f5f9;border-radius:20px;padding:32px 28px;transition:all .4s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;cursor:default}
+.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:20px 20px 0 0;opacity:0;transition:opacity .3s}
+.feature-card:hover{transform:translateY(-6px);box-shadow:0 20px 50px rgba(0,0,0,.06);border-color:transparent}
+.feature-card:hover::before{opacity:1}
+.feature-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;transition:transform .3s}
+.feature-card:hover .feature-icon{transform:scale(1.1) rotate(-3deg)}
+.feature-card h3{font-size:1.1rem;font-weight:700;margin-bottom:10px;color:#0f172a}
+.feature-card p{font-size:.88rem;color:#64748b;line-height:1.65;font-weight:400}
+.feature-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.feature-tags span{padding:3px 10px;border-radius:6px;font-size:.72rem;font-weight:600}
+
+/* ── TECH STACK ── */
+.tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;max-width:1200px;margin:0 auto}
+.tech-card{background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:24px 20px;text-align:center;transition:all .35s cubic-bezier(.4,0,.2,1);cursor:default}
+.tech-card:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 12px 30px rgba(0,0,0,.06);border-color:transparent}
+.tech-card .emoji{font-size:2rem;margin-bottom:10px;display:block;transition:transform .3s}
+.tech-card:hover .emoji{transform:scale(1.15)}
+.tech-card .name{font-weight:700;font-size:.95rem;margin-bottom:4px}
+.tech-card .type{font-size:.72rem;color:#94a3b8;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── WORKFLOW ── */
+.workflow{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:0;position:relative}
+.workflow::before{content:'';position:absolute;left:36px;top:40px;bottom:40px;width:2px;background:linear-gradient(to bottom,#6366f1,#d946ef,#f43f5e,#f59e0b);border-radius:2px}
+.wf-step{display:flex;align-items:flex-start;gap:24px;padding:28px 0;position:relative}
+.wf-num{width:72px;height:72px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;flex-shrink:0;z-index:2;transition:transform .3s}
+.wf-step:hover .wf-num{transform:scale(1.08) rotate(-2deg)}
+.wf-content h3{font-size:1.15rem;font-weight:700;margin-bottom:6px;color:#0f172a}
+.wf-content p{font-size:.9rem;color:#64748b;line-height:1.65}
+
+/* ── CTA ── */
+.cta-section{padding:80px 24px;text-align:center;position:relative;overflow:hidden}
+.cta-box{max-width:700px;margin:0 auto;background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 40%,#d946ef 100%);border-radius:28px;padding:60px 40px;position:relative;overflow:hidden}
+.cta-box::before{content:'';position:absolute;top:-50%;right:-50%;width:100%;height:100%;background:radial-gradient(circle,rgba(255,255,255,.1) 0%,transparent 60%);border-radius:50%}
+.cta-box h2{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:800;color:#fff;margin-bottom:14px;position:relative}
+.cta-box p{color:rgba(255,255,255,.8);font-size:1rem;margin-bottom:30px;font-weight:300;position:relative}
+.btn-white{background:#fff;color:#6366f1;padding:14px 36px;border-radius:12px;font-weight:700;font-size:.95rem;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:all .3s;position:relative;border:none;cursor:pointer}
+.btn-white:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.15)}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid #f1f5f9;padding:40px 24px;text-align:center}
+footer p{color:#94a3b8;font-size:.82rem;font-weight:400}
+footer a{color:#6366f1;text-decoration:none;font-weight:500}
+
+/* ── REVEAL ANIMATIONS ── */
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .7s cubic-bezier(.4,0,.2,1),transform .7s cubic-bezier(.4,0,.2,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+@keyframes fadeDown{from{opacity:0;transform:translateY(-25px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav-links{display:none;position:absolute;top:100%;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);flex-direction:column;padding:20px;gap:16px;border-bottom:1px solid #f1f5f9}
+  .nav-links.open{display:flex}
+  .mobile-toggle{display:flex}
+  .stats{gap:30px}
+  .stat-num{font-size:2rem}
+  .workflow::before{left:24px}
+  .wf-num{width:50px;height:50px;font-size:1rem;border-radius:12px}
+  .cta-box{padding:40px 24px;border-radius:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <div class="nav-brand">🎙️ Voice-Pro</div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#features">Özellikler</a></li>
+      <li><a href="#tech">Teknoloji</a></li>
+      <li><a href="#workflow">İş Akışı</a></li>
+      <li><a href="https://github.com/abus-aikorea/voice-pro" target="_blank" class="nav-cta">GitHub →</a></li>
+    </ul>
+    <div class="mobile-toggle" onclick="document.getElementById('navLinks').classList.toggle('open')">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge"><span class="dot"></span> v2.0 — Açık Kaynak AI Platform</div>
+    <h1>Yapay Zekâ ile<br><span class="gradient">Ses & Video</span> Dönüşümü</h1>
+    <p>Konuşma tanıma, çeviri, metin okuma, ses klonlama ve daha fazlası — tek bir güçlü web uygulamasında.</p>
+    <div class="hero-buttons">
+      <a href="#features" class="btn btn-primary">🚀 Keşfet</a>
+      <a href="https://github.com/abus-aikorea/voice-pro" target="_blank" class="btn btn-secondary">⭐ GitHub'da Gör</a>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat-item">
+    <div class="stat-num" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" data-count="84">0</div>
+    <div class="stat-label">Uygulama Modülü</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" style="background:linear-gradient(135deg,#d946ef,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" data-count="6">0</div>
+    <div class="stat-label">TTS Motoru</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" style="background:linear-gradient(135deg,#f59e0b,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" data-count="4">0</div>
+    <div class="stat-label">ASR Engine</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" style="background:linear-gradient(135deg,#10b981,#14b8a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text" data-count="8">0</div>
+    <div class="stat-label">Dil Desteği</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-header reveal">
+    <div class="section-tag" style="background:rgba(99,102,241,.08);color:#6366f1">ÖZELLİKLER</div>
+    <h2 class="section-title">Her şey tek yerde</h2>
+    <p class="section-desc">Multimedya içerik üretiminin tüm aşamalarını kapsayan kapsamlı bir AI araç seti.</p>
+  </div>
+  <div class="features-grid">
+
+    <div class="feature-card reveal" style="--delay:.05s">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:20px 20px 0 0;opacity:0;transition:opacity .3s" class="card-bar"></div>
+      <div class="feature-icon" style="background:rgba(99,102,241,.08)">🎙️</div>
+      <h3>Konuşma Tanıma (ASR)</h3>
+      <p>Whisper, Faster-Whisper, WhisperX ile yüksek doğrulukta konuşmadan metne dönüşüm.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(99,102,241,.08);color:#6366f1">Whisper</span>
+        <span style="background:rgba(139,92,246,.08);color:#8b5cf6">Faster-Whisper</span>
+        <span style="background:rgba(168,85,247,.08);color:#a855f7">WhisperX</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.1s">
+      <div class="feature-icon" style="background:rgba(236,72,153,.08)">🔊</div>
+      <h3>Metin Okuma (TTS)</h3>
+      <p>Edge-TTS, CosyVoice, F5, Kokoro ile doğal ve akıcı ses sentezi.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(236,72,153,.08);color:#ec4899">Edge-TTS</span>
+        <span style="background:rgba(217,70,239,.08);color:#d946ef">CosyVoice</span>
+        <span style="background:rgba(244,63,94,.08);color:#f43f5e">F5</span>
+        <span style="background:rgba(245,158,11,.08);color:#f59e0b">Kokoro</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.15s">
+      <div class="feature-icon" style="background:rgba(244,63,94,.08)">🎤</div>
+      <h3>Ses Klonlama (RVC)</h3>
+      <p>Gerçekçi ses klonlama ile herhangi bir sese dönüşün.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(244,63,94,.08);color:#f43f5e">RVC</span>
+        <span style="background:rgba(239,68,68,.08);color:#ef4444">Voice Clone</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.2s">
+      <div class="feature-icon" style="background:rgba(245,158,11,.08)">🎵</div>
+      <h3>Ses Ayrıştırma</h3>
+      <p>Demucs ve MDXNet ile müziği vokalden ayırın.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(245,158,11,.08);color:#f59e0b">Demucs</span>
+        <span style="background:rgba(249,115,22,.08);color:#f97316">MDXNet</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.25s">
+      <div class="feature-icon" style="background:rgba(16,185,129,.08)">🌍</div>
+      <h3>Çoklu Dil Çeviri</h3>
+      <p>Azure ve DeepL ile profesyonel kalitede 8+ dil desteği.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(16,185,129,.08);color:#10b981">Azure</span>
+        <span style="background:rgba(20,184,166,.08);color:#14b8a6">DeepL</span>
+        <span style="background:rgba(6,182,212,.08);color:#06b6d4">8 Dil</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.3s">
+      <div class="feature-icon" style="background:rgba(59,130,246,.08)">🎬</div>
+      <h3>AI Cover & Karaoke</h3>
+      <p>Herhangi bir şarkıyı istediğiniz sese dönüştürün, karaoke videoları oluşturun.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(59,130,246,.08);color:#3b82f6">AI Cover</span>
+        <span style="background:rgba(99,102,241,.08);color:#6366f1">Karaoke</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.35s">
+      <div class="feature-icon" style="background:rgba(139,92,246,.08)">📺</div>
+      <h3>Canlı Çeviri</h3>
+      <p>Gerçek zamanlı konuşma tanıma ve çeviri ile canlı dublaj.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(139,92,246,.08);color:#8b5cf6">Live</span>
+        <span style="background:rgba(168,85,247,.08);color:#a855f7">Real-time</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.4s">
+      <div class="feature-icon" style="background:rgba(6,182,212,.08)">📐</div>
+      <h3>Video Süper Çözünürlük</h3>
+      <p>Yapay zekâ ile video kalitesini yükseltin.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(6,182,212,.08);color:#06b6d4">VSR</span>
+        <span style="background:rgba(14,165,233,.08);color:#0ea5e9">Upscale</span>
+      </div>
+    </div>
+
+    <div class="feature-card reveal" style="--delay:.45s">
+      <div class="feature-icon" style="background:rgba(234,179,8,.08)">⚡</div>
+      <h3>Toplu İşleme</h3>
+      <p>Birden fazla dosyayı otomatik olarak işleyin, zaman kazanın.</p>
+      <div class="feature-tags">
+        <span style="background:rgba(234,179,8,.08);color:#eab308">Batch</span>
+        <span style="background:rgba(245,158,11,.08);color:#f59e0b">Otomasyon</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="section" id="tech" style="background:#fafbfc">
+  <div class="section-header reveal">
+    <div class="section-tag" style="background:rgba(217,70,239,.08);color:#d946ef">TEKNOLOJİ</div>
+    <h2 class="section-title">Güçlü Teknoloji Yığını</h2>
+    <p class="section-desc">En güncel ve güvenilir açık kaynak AI teknolojileri üzerine inşa edildi.</p>
+  </div>
+  <div class="tech-grid">
+    <div class="tech-card reveal">
+      <span class="emoji">🤗</span>
+      <div class="name" style="color:#6366f1">Whisper</div>
+      <div class="type">ASR Engine</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">⚡</span>
+      <div class="name" style="color:#8b5cf6">Faster-Whisper</div>
+      <div class="type">Hızlı ASR</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🔊</span>
+      <div class="name" style="color:#d946ef">CosyVoice</div>
+      <div class="type">TTS Motoru</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🌐</span>
+      <div class="name" style="color:#ec4899">Edge-TTS</div>
+      <div class="type">TTS Motoru</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🎤</span>
+      <div class="name" style="color:#f43f5e">RVC</div>
+      <div class="type">Ses Klonlama</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🎵</span>
+      <div class="name" style="color:#f59e0b">Demucs</div>
+      <div class="type">Ses Ayrıştırma</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🧠</span>
+      <div class="name" style="color:#10b981">MDXNet</div>
+      <div class="type">Ses Ayrıştırma</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🗣️</span>
+      <div class="name" style="color:#3b82f6">Kokoro</div>
+      <div class="type">TTS Motoru</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🔥</span>
+      <div class="name" style="color:#ef4444">F5-TTS</div>
+      <div class="type">TTS Motoru</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🎨</span>
+      <div class="name" style="color:#64748b">Gradio</div>
+      <div class="type">Web UI</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">💻</span>
+      <div class="name" style="color:#0ea5e9">CUDA</div>
+      <div class="type">GPU Hızlandırma</div>
+    </div>
+    <div class="tech-card reveal">
+      <span class="emoji">🐍</span>
+      <div class="name" style="color:#14b8a6">Python</div>
+      <div class="type">Programlama Dili</div>
+    </div>
+  </div>
+</section>
+
+<!-- WORKFLOW -->
+<section class="section" id="workflow">
+  <div class="section-header reveal">
+    <div class="section-tag" style="background:rgba(245,158,11,.08);color:#f59e0b">İŞ AKIŞI</div>
+    <h2 class="section-title">Nasıl Çalışır?</h2>
+    <p class="section-desc">4 basit adımda profesyonel ses ve video üretimi.</p>
+  </div>
+  <div class="workflow">
+    <div class="wf-step reveal">
+      <div class="wf-num" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">01</div>
+      <div class="wf-content">
+        <h3>Yükle veya İndir</h3>
+        <p>YouTube'dan video indirin veya kendi ses/video dosyanızı yükleyin. Tüm popüler formatlar desteklenir.</p>
+      </div>
+    </div>
+    <div class="wf-step reveal">
+      <div class="wf-num" style="background:linear-gradient(135deg,#d946ef,#f43f5e)">02</div>
+      <div class="wf-content">
+        <h3>Tanı & Ayır</h3>
+        <p>AI konuşmayı metne dönüştürür, müziği vokalden ayırır. İsteğe bağlı altyazı oluşturulur.</p>
+      </div>
+    </div>
+    <div class="wf-step reveal">
+      <div class="wf-num" style="background:linear-gradient(135deg,#f43f5e,#f59e0b)">03</div>
+      <div class="wf-content">
+        <h3>Çevir & Sentezle</h3>
+        <p>Metni hedef dile çevirin, AI ile doğal sese dönüştürün. İstediğiniz sesi klonlayabilirsiniz.</p>
+      </div>
+    </div>
+    <div class="wf-step reveal">
+      <div class="wf-num" style="background:linear-gradient(135deg,#f59e0b,#10b981)">04</div>
+      <div class="wf-content">
+        <h3>İndir & Paylaş</h3>
+        <p>Final ses/video dosyasını indirin. Toplu işleme ile birden fazla dosyayı otomatik üretin.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-box reveal">
+    <h2>Hemen Başlayın ✨</h2>
+    <p>Açık kaynak, ücretsiz, sınırsız. Ses & video AI'ın gücünü keşfedin.</p>
+    <a href="https://github.com/abus-aikorea/voice-pro" target="_blank" class="btn-white">⭐ GitHub'da Keşfet →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2025 Voice-Pro — <a href="https://github.com/abus-aikorea/voice-pro">ABUS AI Korea</a> tarafından geliştirilmiştir. LGPL Lisansı.</p>
+</footer>
+
+<script>
+// Navbar scroll
+const nav = document.getElementById('navbar');
+window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 20));
+
+// Mobile nav close on link click
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', () => document.getElementById('navLinks').classList.remove('open'));
+});
+
+// Reveal on scroll
+const reveals = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      const delay = getComputedStyle(entry.target).getPropertyValue('--delay') || '0s';
+      entry.target.style.transitionDelay = delay;
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+reveals.forEach(el => revealObserver.observe(el));
+
+// Feature card hover bar
+document.querySelectorAll('.feature-card').forEach(card => {
+  const bar = card.querySelector('.card-bar');
+  if (bar) {
+    card.addEventListener('mouseenter', () => bar.style.opacity = '1');
+    card.addEventListener('mouseleave', () => bar.style.opacity = '0');
+  }
+});
+
+// Counter animation
+const counters = document.querySelectorAll('[data-count]');
+const counterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      const target = parseInt(el.dataset.count);
+      let current = 0;
+      const increment = target / 40;
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          el.textContent = target;
+          clearInterval(timer);
+        } else {
+          el.textContent = Math.floor(current);
+        }
+      }, 30);
+      counterObserver.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+counters.forEach(el => counterObserver.observe(el));
+</script>
+</body>
+</html>

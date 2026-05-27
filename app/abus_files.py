@@ -36,6 +36,10 @@ class FileManager:
     
     def set_subtitles(self, subtitles, language: str, audio_path: str = ""):
         self.subtitles = {}
+
+        if not subtitles:
+            logger.warning('[abus_files.py] set_subtitles: no subtitle files were generated')
+            return
         
         for file_path in subtitles:
             file_name, file_extension = os.path.splitext(os.path.basename(file_path))

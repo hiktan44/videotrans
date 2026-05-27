@@ -43,17 +43,17 @@ class YoutubeDownloader:
         
         
     def dl_progress_hook(self, d):
-        if ('status' not in d):
-            return
-        if ('total_bytes' not in d) and ('total_bytes_estimate' not in d):
+        if "status" not in d:
             return
         
         try:
-            total_bytes = d["total_bytes"] if 'total_bytes' in d else (d["total_bytes_estimate"] if 'total_bytes_estimate' in d else 0)     
-            downloaded_bytes = d["downloaded_bytes"]
+            total_bytes = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            downloaded_bytes = d.get("downloaded_bytes") or 0
             
             if d["status"] == "downloading" and total_bytes > 0:
                 self.progress(int(downloaded_bytes / total_bytes * 100) / 100.0, desc="YouTube Downloader")
+            elif d["status"] == "finished":
+                self.progress(1.0, desc="YouTube Downloader")
         except Exception as e:
             logger.error(f"[abus_downloader.py] dl_progress_hook - An error occurred: {e}")
 
@@ -63,6 +63,13 @@ class YoutubeDownloader:
         ydl_opts['keepvideo'] = False
         ydl_opts['progress_hooks'] = [self.dl_progress_hook]
         ydl_opts['playlist_items'] = '1'
+        ydl_opts['check_formats'] = False
+        ydl_opts['merge_output_format'] = 'mp4'
+        ydl_opts['extractor_args'] = {'youtube': {'player_client': ['default']}}
+
+        bun_path = os.path.expanduser('~/.bun/bin/bun')
+        if os.path.exists(bun_path):
+            ydl_opts['js_runtimes'] = {'bun': {'path': bun_path}}
         
         # User Agent 설정 추가
         ydl_opts['http_headers'] = {
@@ -77,11 +84,11 @@ class YoutubeDownloader:
                 
         
         if quality == "best":
-            ydl_opts['format'] = 'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[ext=webm][vcodec^=vp9]+bestaudio[ext=webm]/best'
+            ydl_opts['format'] = 'best[ext=mp4]/best'
         elif quality == "good":            
-            ydl_opts['format'] = 'bestvideo[ext=mp4][vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][vcodec^=avc1][height<=1080]/best'
+            ydl_opts['format'] = 'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
         elif quality == "low":
-            ydl_opts['format'] = 'bestvideo[ext=mp4][vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][vcodec^=avc1][height<=720]/best'
+            ydl_opts['format'] = 'best[ext=mp4][height<=360]/best[height<=360]/best[ext=mp4]/best'
 
         ydl_opts['outtmpl'] = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
 

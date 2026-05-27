@@ -4,6 +4,7 @@ from app.abus_path import *
 from app.abus_voice_ms import *
 from app.abus_tts_edge import *
 from app.abus_tts_azure import *
+from app.abus_openai import *
 
 # from app.abus_translate_deep import *
 # from app.abus_translate_azure import *

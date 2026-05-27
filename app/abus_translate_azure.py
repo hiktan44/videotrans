@@ -115,13 +115,9 @@ class AzureTranslator:
     
 
     def translate_file(self, source_lang: str, target_lang: str, subtitle_file_path: str, output_file_path: str, progress=gr.Progress()):
-        tts_source_file = path_add_postfix(subtitle_file_path, f"-{source_lang}", ".srt")
-        
-        # AbusText.process_subtitle_for_tts(subtitle_file_path, tts_source_file)
-        AbusSpacy.process_subtitle_for_tts(subtitle_file_path, tts_source_file)
-        
-        # Load subtitles using pysubs2
-        full_subs = pysubs2.load(tts_source_file)
+        # Keep original timings during translation. TTS-specific splitting is
+        # handled later by the selected TTS engine.
+        full_subs = pysubs2.load(subtitle_file_path, encoding="utf-8")
         subs = full_subs
         
         # 구두점이 없는 언어의 경우 각 자막을 개별적으로 번역
@@ -144,7 +140,6 @@ class AzureTranslator:
 
         # Save the translated subtitles
         subs.save(output_file_path)     
-        cmd_delete_file(tts_source_file)  
 
        
     

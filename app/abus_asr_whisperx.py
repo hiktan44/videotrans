@@ -34,7 +34,7 @@ class ProgressCapture(StringIO):
     def write(self, text):
         # 진행률 출력 패턴: "Progress: XX.XX%..."
         match = re.search(r"Progress: (\d+\.\d+)%", text)
-        if match:
+        if match and self.progress is not None:
             percent = float(match.group(1)) / 100  # 0~1 사이 값으로 변환
             self.progress(percent, desc=self.desc)
         super().write(text)
@@ -166,6 +166,7 @@ class WhisperXInference:
             return subtitles
         except Exception as e:
             logger.error(f"[abus_asr_whisperx.py] transcribe_file - An error occurred: {e}")
+            raise
         finally:
             self.model = None
             self.release_cuda_memory()

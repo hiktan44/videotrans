@@ -73,6 +73,11 @@ def gulliver_tab(user_config: UserConfig):
                 with gr.Column():
                     with gr.Group():
                         gr.HTML(f'<center><h4>{i18n("Output Video")}</h4></center>')    
+                        output_subtitle_mode = gr.Radio(
+                            label=i18n("Subtitles"),
+                            choices=gulliver.subtitle_modes(),
+                            value="Translated subtitles",
+                        )
                         dubbing_video = gr.Video(label=i18n("Video"), interactive=False)
                         dubbing_audio = gr.Audio(label=i18n("Audio"), type="filepath", interactive=False)
                         translation_textbox = gr.Textbox(label=i18n("Translated captions"), interactive=True, show_label=True, max_lines=24, show_copy_button=True,
@@ -107,6 +112,21 @@ def gulliver_tab(user_config: UserConfig):
                 with gr.Row():
                     edge_default_button = gr.ClearButton(value=i18n("Load Defaults"))
                     edge_dubbing_button = gr.Button(value=i18n("Synthesis"), variant="primary")
+
+            with gr.Tab(i18n('OpenAI-TTS')):
+                with gr.Group():
+                    openai_voice_dropdown = gr.Dropdown(label=i18n("Voice"), choices=gulliver.openai_tts.available_voices(), value="marin")
+                    openai_tts_speed = gr.Slider(0.5, 2.0, value=1.0, step=0.05, label=i18n("Speech rate"), info="0.5 ~ 2.0")
+                    openai_tts_instructions = gr.Textbox(
+                        label=i18n("Instructions"),
+                        interactive=True,
+                        max_lines=4,
+                        lines=2,
+                        value="Natural, clear Turkish dubbing voice. Keep a steady documentary narration style.",
+                    )
+                with gr.Row():
+                    openai_default_button = gr.ClearButton(value=i18n("Load Defaults"))
+                    openai_dubbing_button = gr.Button(value=i18n("Synthesis"), variant="primary")
 
             with gr.Tab(i18n('F5-TTS')):          
                 with gr.Group():                            
@@ -180,7 +200,7 @@ def gulliver_tab(user_config: UserConfig):
                              inputs=[transcription_textbox],
                              outputs=[source_language_dropdown])
     translate_button.click(gulliver.gradio_translate,
-                              inputs=[source_language_dropdown, transcription_textbox, translate_language_dropdown],
+                              inputs=[source_language_dropdown, transcription_textbox, translate_language_dropdown, output_subtitle_mode],
                               outputs=[dubbing_video, dubbing_audio, translation_textbox, dubbing_files])
 
    
@@ -200,8 +220,22 @@ def gulliver_tab(user_config: UserConfig):
                 inputs=[
                         translation_textbox, 
                         ms_voice_dropdown, 
-                        edge_tts_pitch, edge_tts_rate, edge_tts_volume, audio_format_radio], 
+                        edge_tts_pitch, edge_tts_rate, edge_tts_volume, audio_format_radio,
+                        output_subtitle_mode], 
                 outputs=[dubbing_video, dubbing_audio, dubbing_files]) 
+
+    openai_default_button.click(gulliver.gradio_openai_default,
+                    outputs=[openai_voice_dropdown, openai_tts_speed, openai_tts_instructions])
+
+    openai_dubbing_button.click(gulliver.gradio_openai_dubbing,
+                inputs=[
+                        translation_textbox,
+                        openai_voice_dropdown,
+                        openai_tts_speed,
+                        openai_tts_instructions,
+                        audio_format_radio,
+                        output_subtitle_mode],
+                outputs=[dubbing_video, dubbing_audio, dubbing_files])
                   
     # F5-TTS
     f5_language_radio.change(f5_reference_voice.gradio_change_language,
@@ -222,7 +256,8 @@ def gulliver_tab(user_config: UserConfig):
             inputs=[
                     translation_textbox, 
                     f5_voice_dropdown, f5_reference_audio, f5_reference_transcript,
-                    f5_model_choice, f5_tts_speed, audio_format_radio], 
+                    f5_model_choice, f5_tts_speed, audio_format_radio,
+                    output_subtitle_mode], 
             outputs=[dubbing_video, dubbing_audio, dubbing_files])     
     
 
@@ -245,7 +280,8 @@ def gulliver_tab(user_config: UserConfig):
                 inputs=[
                         translation_textbox, 
                         cosy_voice_dropdown, cosy_reference_audio, cosy_reference_transcript, 
-                        cosy_mode_choice, cosy_tts_speed, audio_format_radio], 
+                        cosy_mode_choice, cosy_tts_speed, audio_format_radio,
+                        output_subtitle_mode], 
                 outputs=[dubbing_video, dubbing_audio, dubbing_files])     
     
     
@@ -262,5 +298,6 @@ def gulliver_tab(user_config: UserConfig):
                     outputs=[kokoro_tts_speed, audio_format_radio])
 
     kokoro_dubbing_button.click(gulliver.gradio_kokoro_dubbing, 
-                inputs=[translation_textbox, kokoro_language_dropdown, kokoro_voice_dropdown, kokoro_tts_speed, audio_format_radio], 
+                inputs=[translation_textbox, kokoro_language_dropdown, kokoro_voice_dropdown, kokoro_tts_speed, audio_format_radio,
+                        output_subtitle_mode], 
                 outputs=[dubbing_video, dubbing_audio, dubbing_files])                     
