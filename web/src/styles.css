@@ -20,10 +20,361 @@ input {
   font: inherit;
 }
 
+.landing {
+  min-height: 100vh;
+  background: #08080a;
+  color: #f3ecdf;
+  overflow: hidden;
+}
+
+.landingNav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 22px 0;
+}
+
+.landingBrand,
+.landingNavLinks,
+.heroActions,
+.eyebrow {
+  display: flex;
+  align-items: center;
+}
+
+.landingBrand {
+  gap: 10px;
+}
+
+.landingBrand span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #d7a948;
+  color: #17110a;
+  font-weight: 900;
+}
+
+.landingBrand strong {
+  font-size: 18px;
+}
+
+.landingNavLinks {
+  gap: 22px;
+}
+
+.landingNavLinks a,
+.landingNavLinks button,
+.heroSecondary {
+  color: #d8cfbf;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.landingNavLinks button {
+  height: 38px;
+  border: 1px solid #5a5142;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #151518;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(380px, 0.98fr);
+  gap: 54px;
+  align-items: center;
+  width: min(1120px, calc(100% - 40px));
+  min-height: calc(100vh - 82px);
+  margin: 0 auto;
+  padding: 48px 0 72px;
+}
+
+.heroCopy {
+  display: grid;
+  gap: 24px;
+}
+
+.eyebrow {
+  width: fit-content;
+  gap: 8px;
+  border: 1px solid #494134;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #d7a948;
+  background: #141316;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.hero h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(44px, 7vw, 82px);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.hero p {
+  max-width: 660px;
+  margin: 0;
+  color: #c9c0b1;
+  font-size: 19px;
+  line-height: 1.65;
+}
+
+.heroActions {
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.heroPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 18px;
+  background: #d7a948;
+  color: #15110b;
+  font-weight: 900;
+}
+
+.heroSecondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid #5a5142;
+  border-radius: 8px;
+  padding: 0 18px;
+  background: #121215;
+}
+
+.heroStage {
+  display: grid;
+  gap: 14px;
+}
+
+.filmFrame {
+  border: 1px solid #3e3a35;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(215, 169, 72, 0.14), transparent 42%),
+    #121215;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.frameTop {
+  display: flex;
+  gap: 8px;
+  padding: 14px;
+  border-bottom: 1px solid #2d2a25;
+}
+
+.frameTop span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #675b46;
+}
+
+.videoMock {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: 30px;
+  text-align: center;
+  background:
+    linear-gradient(90deg, transparent 0 48%, rgba(255, 255, 255, 0.06) 49% 51%, transparent 52%),
+    repeating-linear-gradient(0deg, #161619 0 26px, #111114 26px 52px);
+}
+
+.videoMock svg {
+  color: #d7a948;
+  margin-bottom: 18px;
+}
+
+.videoMock strong {
+  display: block;
+  font-size: 22px;
+}
+
+.videoMock p,
+.captionLine,
+.metricStrip span {
+  color: #c9c0b1;
+}
+
+.captionLine {
+  margin: 0 20px 20px;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: rgba(8, 8, 10, 0.78);
+  text-align: center;
+  font-weight: 800;
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metricStrip > div {
+  border: 1px solid #3e3a35;
+  border-radius: 8px;
+  padding: 16px;
+  background: #111114;
+}
+
+.metricStrip strong,
+.metricStrip span {
+  display: block;
+}
+
+.metricStrip strong {
+  margin-bottom: 4px;
+  color: #f3ecdf;
+  font-size: 22px;
+}
+
+.landingBand,
+.featureSection,
+.workflowSection,
+.audienceSection,
+.finalCta {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.landingBand {
+  border-block: 1px solid #2e2a25;
+  padding: 24px 0;
+}
+
+.landingBand p {
+  margin: 0;
+  color: #d8cfbf;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.featureSection,
+.workflowSection,
+.audienceSection,
+.finalCta {
+  padding: 86px 0;
+}
+
+.sectionIntro {
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.sectionIntro span {
+  color: #d7a948;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.sectionIntro h2,
+.finalCta h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 52px);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.featureGrid,
+.workflowGrid,
+.audienceSection {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.featureCard,
+.workflowStep,
+.audienceSection > div {
+  border: 1px solid #3e3a35;
+  border-radius: 8px;
+  padding: 20px;
+  background: #111114;
+}
+
+.featureCard > div,
+.audienceSection svg {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #263d3b;
+  color: #73d8c5;
+}
+
+.featureCard h3,
+.audienceSection strong {
+  display: block;
+  margin: 18px 0 8px;
+  color: #f7f1e6;
+  font-size: 18px;
+}
+
+.featureCard p,
+.workflowStep p,
+.audienceSection p,
+.finalCta p {
+  margin: 0;
+  color: #c9c0b1;
+  line-height: 1.6;
+}
+
+.workflowGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workflowStep {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.workflowStep span {
+  color: #d7a948;
+  font-size: 32px;
+  font-weight: 900;
+}
+
+.audienceSection {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.finalCta {
+  display: grid;
+  gap: 18px;
+  place-items: start;
+  border-top: 1px solid #2e2a25;
+  padding-bottom: 110px;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   min-height: 100vh;
+  scroll-margin-top: 0;
 }
 
 .sidebar {
@@ -429,6 +780,41 @@ textarea {
 }
 
 @media (max-width: 860px) {
+  .landingNav {
+    align-items: flex-start;
+  }
+
+  .landingNavLinks {
+    display: none;
+  }
+
+  .hero,
+  .featureGrid,
+  .workflowGrid,
+  .audienceSection,
+  .metricStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    gap: 28px;
+    min-height: auto;
+    padding-top: 34px;
+  }
+
+  .hero p,
+  .landingBand p {
+    font-size: 16px;
+  }
+
+  .videoMock {
+    min-height: 240px;
+  }
+
+  .workflowStep {
+    grid-template-columns: 1fr;
+  }
+
   .shell {
     grid-template-columns: 1fr;
   }

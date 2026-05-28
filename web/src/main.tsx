@@ -1,6 +1,21 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CheckCircle2, FileAudio, Link2, Loader2, UploadCloud, Volume2 } from "lucide-react";
+import {
+  ArrowRight,
+  Captions,
+  CheckCircle2,
+  Download,
+  FileAudio,
+  Globe2,
+  Link2,
+  Loader2,
+  Mic2,
+  PlayCircle,
+  Sparkles,
+  UploadCloud,
+  Video,
+  Volume2,
+} from "lucide-react";
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -156,6 +171,171 @@ type Job = {
 type Step = "transcribe" | "translate" | "dubbing" | "exports";
 type CaptionMode = "off" | "source" | "translated";
 type VoiceGender = "female" | "male";
+
+const landingFeatures = [
+  {
+    icon: <FileAudio size={20} />,
+    title: "Otomatik transkripsiyon",
+    text: "Videodaki konuşmaları zaman kodlu altyazıya ve düzenlenebilir metne dönüştür.",
+  },
+  {
+    icon: <Globe2 size={20} />,
+    title: "Akıllı çeviri",
+    text: "Altyazıları hedef dile çevir, tekrar eden satırları temizle ve lokalize içerik hazırla.",
+  },
+  {
+    icon: <Mic2 size={20} />,
+    title: "Doğal dublaj",
+    text: "Kadın veya erkek ses seçimiyle hedef dilde senkronize seslendirme üret.",
+  },
+  {
+    icon: <Captions size={20} />,
+    title: "Altyazı kontrolü",
+    text: "Orijinal, çevrilmiş veya altyazısız oynatma seçeneklerini tek ekrandan yönet.",
+  },
+];
+
+const landingSteps = [
+  "Videonu yükle veya YouTube linkini ekle.",
+  "Konuşmaları otomatik olarak altyazıya dönüştür.",
+  "Hedef dili seç, çeviriyi oluştur ve düzenle.",
+  "Ses seçimini yap, dublajlı videonu indir.",
+];
+
+function scrollToStudio() {
+  document.getElementById("studio")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function LandingPage() {
+  return (
+    <section className="landing">
+      <header className="landingNav">
+        <div className="landingBrand">
+          <span>VT</span>
+          <strong>VideoTrans</strong>
+        </div>
+        <div className="landingNavLinks">
+          <a href="#features">Özellikler</a>
+          <a href="#workflow">Nasıl çalışır?</a>
+          <button onClick={scrollToStudio}>Uygulamayı aç</button>
+        </div>
+      </header>
+
+      <section className="hero">
+        <div className="heroCopy">
+          <span className="eyebrow">
+            <Sparkles size={16} />
+            AI video lokalizasyon stüdyosu
+          </span>
+          <h1>Videolarını dakikalar içinde farklı dillere taşı.</h1>
+          <p>
+            VideoTrans videonu yazıya döker, çevirir, altyazı oluşturur ve seçtiğin dilde dublajlı çıktı hazırlar.
+            YouTube linki veya video dosyasıyla tek akışta global içerik üret.
+          </p>
+          <div className="heroActions">
+            <button className="heroPrimary" onClick={scrollToStudio}>
+              Hemen dene
+              <ArrowRight size={18} />
+            </button>
+            <a className="heroSecondary" href="#workflow">
+              Nasıl çalışır?
+            </a>
+          </div>
+        </div>
+
+        <div className="heroStage" aria-label="VideoTrans workflow preview">
+          <div className="filmFrame">
+            <div className="frameTop">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="videoMock">
+              <PlayCircle size={54} />
+              <div>
+                <strong>Global launch video</strong>
+                <p>EN to TR altyazı ve dublaj hazırlanıyor</p>
+              </div>
+            </div>
+            <div className="captionLine">"Ürününüzü dünyaya kendi dilinde anlatın."</div>
+          </div>
+          <div className="metricStrip">
+            <div>
+              <strong>4 adım</strong>
+              <span>yükle, yaz, çevir, dublajla</span>
+            </div>
+            <div>
+              <strong>100+ dil</strong>
+              <span>Türkçe varsayılan hedef dil</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="landingBand">
+        <p>Tek video, çok dil. İçerik üreticileri, eğitimciler, ajanslar ve SaaS ekipleri için hızlı lokalizasyon.</p>
+      </section>
+
+      <section id="features" className="featureSection">
+        <div className="sectionIntro">
+          <span>Özellikler</span>
+          <h2>Transcribe, translate, subtitle ve dubbing tek yerde.</h2>
+        </div>
+        <div className="featureGrid">
+          {landingFeatures.map((feature) => (
+            <article className="featureCard" key={feature.title}>
+              <div>{feature.icon}</div>
+              <h3>{feature.title}</h3>
+              <p>{feature.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="workflow" className="workflowSection">
+        <div className="sectionIntro">
+          <span>İş akışı</span>
+          <h2>Dağınık araçları tek üretim hattına indir.</h2>
+        </div>
+        <div className="workflowGrid">
+          {landingSteps.map((step, index) => (
+            <article className="workflowStep" key={step}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{step}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="audienceSection">
+        <div>
+          <Video size={22} />
+          <strong>İçerik üreticileri</strong>
+          <p>YouTube, Instagram, TikTok ve eğitim videolarını yeni pazarlara aç.</p>
+        </div>
+        <div>
+          <Globe2 size={22} />
+          <strong>Ajanslar ve ekipler</strong>
+          <p>Müşteriler için hızlı altyazı, çeviri ve dublaj çıktıları hazırla.</p>
+        </div>
+        <div>
+          <Download size={22} />
+          <strong>Hazır çıktı</strong>
+          <p>Altyazı dosyalarını, seslendirmeyi ve dublajlı video çıktısını indir.</p>
+        </div>
+      </section>
+
+      <section className="finalCta">
+        <h2>Videolarını tek dilden çıkar.</h2>
+        <p>VideoTrans ile altyazılı, çevrilmiş ve dublajlı içerikleri daha hızlı üret.</p>
+        <button className="heroPrimary" onClick={scrollToStudio}>
+          VideoTrans'ı dene
+          <ArrowRight size={18} />
+        </button>
+      </section>
+    </section>
+  );
+}
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -328,7 +508,9 @@ function App() {
   }
 
   return (
-    <main className="shell">
+    <>
+    <LandingPage />
+    <main id="studio" className="shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brandMark">VP</div>
@@ -703,6 +885,7 @@ function App() {
         )}
       </section>
     </main>
+    </>
   );
 }
 
