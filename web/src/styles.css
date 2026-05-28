@@ -370,6 +370,61 @@ input {
   padding-bottom: 110px;
 }
 
+.loginGate {
+  display: grid;
+  place-items: center;
+  min-height: 72vh;
+  padding: 72px 20px;
+  background: #0f1115;
+}
+
+.loginPanel {
+  display: grid;
+  gap: 18px;
+  width: min(480px, 100%);
+  border: 1px solid #313946;
+  border-radius: 8px;
+  padding: 28px;
+  background: #ffffff;
+  color: #15191f;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.26);
+}
+
+.loginPanel .eyebrow {
+  background: #f6fbf9;
+  border-color: #cfe2dc;
+  color: #167a65;
+}
+
+.loginPanel h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.loginPanel p {
+  margin: 0;
+  color: #5b6673;
+  line-height: 1.6;
+}
+
+.loginPanel form {
+  display: grid;
+  gap: 14px;
+}
+
+.loginPanel input[type="password"] {
+  height: 44px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.loginError {
+  color: #c3423f;
+  font-size: 13px;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);

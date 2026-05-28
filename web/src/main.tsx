@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowRight,
@@ -337,6 +337,62 @@ function LandingPage() {
   );
 }
 
+function LoginGate({ onLogin }: { onLogin: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    const form = new FormData();
+    form.append("password", password);
+    const response = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      body: form,
+      credentials: "include",
+    });
+    setSubmitting(false);
+    if (!response.ok) {
+      setError("Şifre hatalı. Lütfen tekrar dene.");
+      return;
+    }
+    setPassword("");
+    onLogin();
+  }
+
+  return (
+    <section id="studio" className="loginGate">
+      <div className="loginPanel">
+        <span className="eyebrow">
+          <Sparkles size={16} />
+          Korumalı studio
+        </span>
+        <h2>Uygulamaya giriş yap</h2>
+        <p>Video yükleme, transcribe, translate ve dubbing araçları sadece giriş yapan kullanıcılar için görünür.</p>
+        <form onSubmit={submitLogin}>
+          <label>
+            Şifre
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Studio şifresi"
+              autoComplete="current-password"
+            />
+          </label>
+          {error && <strong className="loginError">{error}</strong>}
+          <button className="heroPrimary" disabled={!password || submitting}>
+            {submitting ? <Loader2 className="spin" size={18} /> : <ArrowRight size={18} />}
+            Giriş yap
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [provider, setProvider] = useState("openai");
@@ -361,12 +417,27 @@ function App() {
   const [dubbing, setDubbing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   const canSubmit = useMemo(() => Boolean((file || mediaUrl.trim()) && !busy), [file, mediaUrl, busy]);
   const sourceCaptionHref = job?.outputs?.vtt;
   const translatedCaptionHref = translateJob?.outputs?.vtt;
   const activeCaptionHref =
     captionMode === "translated" ? translatedCaptionHref : captionMode === "source" ? sourceCaptionHref : undefined;
+
+  useEffect(() => {
+    refreshAuth();
+  }, []);
+
+  async function refreshAuth() {
+    const response = await fetch(`${API_BASE}/api/auth/session`, { credentials: "include" });
+    const session = await response.json();
+    setAuthEnabled(Boolean(session.enabled));
+    setAuthenticated(Boolean(session.authenticated));
+    setAuthChecked(true);
+  }
 
   async function startTranscribe() {
     if (!file && !mediaUrl.trim()) return;
@@ -385,6 +456,7 @@ function App() {
     const response = await fetch(`${API_BASE}/api/jobs/transcribe`, {
       method: "POST",
       body: form,
+      credentials: "include",
     });
     if (!response.ok) {
       setBusy(false);
@@ -431,6 +503,7 @@ function App() {
     const response = await fetch(`${API_BASE}/api/jobs/translate`, {
       method: "POST",
       body: form,
+      credentials: "include",
     });
     if (!response.ok) {
       setTranslating(false);
@@ -476,6 +549,7 @@ function App() {
     const response = await fetch(`${API_BASE}/api/jobs/dubbing`, {
       method: "POST",
       body: form,
+      credentials: "include",
     });
     if (!response.ok) {
       setDubbing(false);
@@ -510,6 +584,9 @@ function App() {
   return (
     <>
     <LandingPage />
+    {authChecked && authEnabled && !authenticated ? (
+      <LoginGate onLogin={() => setAuthenticated(true)} />
+    ) : (
     <main id="studio" className="shell">
       <aside className="sidebar">
         <div className="brand">
@@ -885,6 +962,7 @@ function App() {
         )}
       </section>
     </main>
+    )}
     </>
   );
 }

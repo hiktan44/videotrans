@@ -1,8 +1,14 @@
+import base64
+import hashlib
+import hmac
+import json
 import os
+import secrets
 import tempfile
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,14 +26,86 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+AUTH_COOKIE = "videotrans_session"
+SESSION_MAX_AGE = 60 * 60 * 24 * 7
+
+
+def _app_password() -> str:
+    return os.getenv("VIDEOTRANS_APP_PASSWORD", "")
+
+
+def _session_secret() -> str:
+    return os.getenv("VIDEOTRANS_SESSION_SECRET") or _app_password() or "videotrans-dev"
+
+
+def _auth_enabled() -> bool:
+    return bool(_app_password())
+
+
+def _sign_session(payload: dict) -> str:
+    body = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode()
+    signature = hmac.new(_session_secret().encode(), body.encode(), hashlib.sha256).hexdigest()
+    return f"{body}.{signature}"
+
+
+def _verify_session(token: str | None) -> bool:
+    if not _auth_enabled():
+        return True
+    if not token or "." not in token:
+        return False
+    body, signature = token.rsplit(".", 1)
+    expected = hmac.new(_session_secret().encode(), body.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        return False
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(body.encode()).decode())
+    except Exception:
+        return False
+    return payload.get("sub") == "videotrans" and int(payload.get("exp", 0)) > int(time.time())
+
+
+def require_auth(request: Request) -> None:
+    if not _verify_session(request.cookies.get(AUTH_COOKIE)):
+        raise HTTPException(status_code=401, detail="Login required")
+
 
 @app.get("/health")
 def health():
     return {"ok": True}
 
 
+@app.get("/api/auth/session")
+def auth_session(request: Request):
+    return {"enabled": _auth_enabled(), "authenticated": _verify_session(request.cookies.get(AUTH_COOKIE))}
+
+
+@app.post("/api/auth/login")
+def auth_login(response: Response, password: str = Form(...)):
+    if not _auth_enabled():
+        return {"enabled": False, "authenticated": True}
+    if not hmac.compare_digest(password, _app_password()):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    token = _sign_session({"sub": "videotrans", "exp": int(time.time()) + SESSION_MAX_AGE, "nonce": secrets.token_hex(8)})
+    response.set_cookie(
+        AUTH_COOKIE,
+        token,
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        secure=os.getenv("VIDEOTRANS_SECURE_COOKIE", "1") != "0",
+        samesite="lax",
+    )
+    return {"enabled": True, "authenticated": True}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(response: Response):
+    response.delete_cookie(AUTH_COOKIE)
+    return {"authenticated": False}
+
+
 @app.post("/api/jobs/transcribe")
 async def create_transcribe_job(
+    _: None = Depends(require_auth),
     file: UploadFile | None = File(None),
     youtube_url: str = Form(""),
     video_quality: str = Form("good"),
@@ -96,6 +174,7 @@ async def create_transcribe_job(
 
 @app.post("/api/jobs/translate")
 async def create_translate_job(
+    _: None = Depends(require_auth),
     source_text: str = Form(...),
     source_language: str = Form("Automatic Detection"),
     target_language: str = Form("Turkish"),
@@ -138,6 +217,7 @@ async def create_translate_job(
 
 @app.post("/api/jobs/dubbing")
 async def create_dubbing_job(
+    _: None = Depends(require_auth),
     subtitle_text: str = Form(...),
     media_job_id: str = Form(""),
     media_href: str = Form(""),
@@ -185,7 +265,7 @@ async def create_dubbing_job(
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, _: None = Depends(require_auth)):
     job = store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -194,7 +274,7 @@ def get_job(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/files/{filename}")
-def get_job_file(job_id: str, filename: str):
+def get_job_file(job_id: str, filename: str, _: None = Depends(require_auth)):
     job = store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
