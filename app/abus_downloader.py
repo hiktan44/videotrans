@@ -1,3 +1,4 @@
+import base64
 import os
 import platform
 import gradio as gr
@@ -8,6 +9,32 @@ from app.abus_path import cmd_rename_file, path_shorten
 
 import structlog
 logger = structlog.get_logger()
+
+
+def _youtube_cookiefile(download_folder: str) -> str | None:
+    configured_path = os.getenv("YTDLP_COOKIES_PATH") or os.getenv("YOUTUBE_COOKIES_PATH")
+    if configured_path and os.path.exists(configured_path):
+        return configured_path
+
+    encoded_cookies = os.getenv("YTDLP_COOKIES_B64") or os.getenv("YOUTUBE_COOKIES_B64")
+    plain_cookies = os.getenv("YTDLP_COOKIES") or os.getenv("YOUTUBE_COOKIES")
+    if encoded_cookies or plain_cookies:
+        cookiefile_path = os.path.join(download_folder, "youtube_cookies.txt")
+        try:
+            if encoded_cookies:
+                cookie_content = base64.b64decode(encoded_cookies).decode("utf-8")
+            else:
+                cookie_content = plain_cookies.replace("\\n", "\n")
+            with open(cookiefile_path, "w", encoding="utf-8") as cookie_file:
+                cookie_file.write(cookie_content)
+            return cookiefile_path
+        except Exception as exc:
+            logger.error(f"[abus_downloader.py] cookiefile setup failed: {exc}")
+
+    local_cookiefile = os.path.join(os.getcwd(), "cookies.txt")
+    if os.path.exists(local_cookiefile):
+        return local_cookiefile
+    return None
 
 
 class FilenameCollectorPP(PostProcessor):
@@ -65,7 +92,7 @@ class YoutubeDownloader:
         ydl_opts['playlist_items'] = '1'
         ydl_opts['check_formats'] = False
         ydl_opts['merge_output_format'] = 'mp4'
-        ydl_opts['extractor_args'] = {'youtube': {'player_client': ['default']}}
+        ydl_opts['extractor_args'] = {'youtube': {'player_client': ['web', 'android', 'ios']}}
 
         bun_path = os.path.expanduser('~/.bun/bin/bun')
         if os.path.exists(bun_path):
@@ -77,11 +104,12 @@ class YoutubeDownloader:
             'Accept-Language': 'en-US,en;q=0.9'
         }        
         
-        system = platform.system()
-        if system == "Linux":
-            cookiefile_path = os.path.join(os.getcwd(), 'cookies.txt')
+        cookiefile_path = _youtube_cookiefile(download_folder)
+        if cookiefile_path:
             ydl_opts['cookiefile'] = cookiefile_path
-                
+        elif platform.system() == "Linux":
+            logger.warning("[abus_downloader.py] no YouTube cookiefile configured; some videos may require sign-in cookies")
+
         
         if quality == "best":
             ydl_opts['format'] = 'best[ext=mp4]/best'
@@ -107,7 +135,16 @@ class YoutubeDownloader:
                     raise ExceededMaximumDuration(videoDuration=total_duration, maxDuration=maxDuration, message="Video is too long")
 
             ydl.add_post_processor(filename_collector)
-            ydl.download([url])
+            try:
+                ydl.download([url])
+            except Exception as exc:
+                message = str(exc)
+                if "Sign in to confirm" in message or "not a bot" in message:
+                    raise Exception(
+                        "YouTube bot doğrulamasına takıldı. Coolify env içine YTDLP_COOKIES_B64 "
+                        "veya YTDLP_COOKIES_PATH eklenmeli. YouTube cookies.txt dosyasını Netscape formatında export edip base64 olarak girin."
+                    ) from exc
+                raise
 
         if len(filename_collector.filenames) <= 0:
             raise Exception("Cannot download " + url)
