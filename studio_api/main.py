@@ -56,6 +56,17 @@ async def add_security_headers(request: Request, call_next):
 
 AUTH_COOKIE = "videotrans_session"
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
+REDACTED_JOB_PARAMS = {"input_path", "source_text", "subtitle_text"}
+
+
+def _public_job(job: dict) -> dict:
+    public = dict(job)
+    params = dict(public.get("params") or {})
+    for key in REDACTED_JOB_PARAMS:
+        if key in params:
+            params[key] = "[redacted]"
+    public["params"] = params
+    return public
 
 
 def _app_password() -> str:
@@ -197,7 +208,7 @@ async def create_transcribe_job(
             )
 
     executor.submit(runner)
-    return store.get(job["id"])
+    return _public_job(store.get(job["id"]))
 
 
 @app.post("/api/jobs/translate")
@@ -240,7 +251,7 @@ async def create_translate_job(
             )
 
     executor.submit(runner)
-    return store.get(job["id"])
+    return _public_job(store.get(job["id"]))
 
 
 @app.post("/api/jobs/dubbing")
@@ -289,7 +300,7 @@ async def create_dubbing_job(
             )
 
     executor.submit(runner)
-    return store.get(job["id"])
+    return _public_job(store.get(job["id"]))
 
 
 @app.get("/api/jobs/{job_id}")
@@ -298,7 +309,7 @@ def get_job(job_id: str, _: None = Depends(require_auth)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     job = _ensure_media_outputs(job)
-    return job
+    return _public_job(job)
 
 
 @app.get("/api/jobs/{job_id}/files/{filename}")
