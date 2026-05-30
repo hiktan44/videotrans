@@ -45,7 +45,6 @@ def _yt_dlp_cli_download(url: str, outtmpl: str, cookiefile_path: str | None, no
         sys.executable,
         "-m",
         "yt_dlp",
-        "--no-warnings",
         "--remote-components",
         "ejs:github",
         "-f",
@@ -63,7 +62,12 @@ def _yt_dlp_cli_download(url: str, outtmpl: str, cookiefile_path: str | None, no
         command.extend(["--js-runtimes", f"node:{node_path}"])
     command.append(url)
 
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        stderr = "\n".join((exc.stderr or "").splitlines()[-12:])
+        stdout = "\n".join((exc.stdout or "").splitlines()[-12:])
+        raise Exception(f"yt-dlp CLI failed: stdout={stdout!r} stderr={stderr!r}") from exc
     candidates = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     for candidate in reversed(candidates):
         if os.path.exists(candidate):
