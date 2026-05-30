@@ -171,7 +171,8 @@ class YoutubeDownloader:
         else:
             ydl_opts['format'] = 'best[ext=mp4]/best'
 
-        ydl_opts['outtmpl'] = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
+        output_template = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
+        ydl_opts['outtmpl'] = output_template
 
         filename_collector = FilenameCollectorPP()
         with YoutubeDL(ydl_opts) as ydl:
@@ -201,7 +202,7 @@ class YoutubeDownloader:
                     logger.warning("[abus_downloader.py] requested format unavailable; retrying with bestaudio/best")
                     try:
                         return self.validate_path(
-                            _yt_dlp_cli_download(url, ydl_opts["outtmpl"], cookiefile_path, node_path)
+                            _yt_dlp_cli_download(url, output_template, cookiefile_path, node_path)
                         )
                     except Exception as cli_exc:
                         logger.warning(f"[abus_downloader.py] yt-dlp CLI fallback failed: {cli_exc}")
