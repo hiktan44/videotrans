@@ -112,11 +112,21 @@ class YoutubeDownloader:
 
         
         if quality == "best":
+            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
+        elif quality == "good":
+            ydl_opts['format'] = (
+                'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/'
+                'bestvideo[height<=720]+bestaudio/'
+                'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
+            )
+        elif quality in ("low", "worst"):
+            ydl_opts['format'] = (
+                'bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/'
+                'bestvideo[height<=360]+bestaudio/'
+                'best[ext=mp4][height<=360]/best[height<=360]/worst[ext=mp4]/worst/best'
+            )
+        else:
             ydl_opts['format'] = 'best[ext=mp4]/best'
-        elif quality == "good":            
-            ydl_opts['format'] = 'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
-        elif quality == "low":
-            ydl_opts['format'] = 'best[ext=mp4][height<=360]/best[height<=360]/best[ext=mp4]/best'
 
         ydl_opts['outtmpl'] = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
 
@@ -144,6 +154,15 @@ class YoutubeDownloader:
                         "YouTube bot doğrulamasına takıldı. Coolify env içine YTDLP_COOKIES_B64 "
                         "veya YTDLP_COOKIES_PATH eklenmeli. YouTube cookies.txt dosyasını Netscape formatında export edip base64 olarak girin."
                     ) from exc
+                if "Requested format is not available" in message:
+                    logger.warning("[abus_downloader.py] requested format unavailable; retrying with bestaudio/best")
+                    fallback_opts = dict(ydl_opts)
+                    fallback_opts["format"] = "bestaudio/best"
+                    filename_collector.filenames.clear()
+                    with YoutubeDL(fallback_opts) as fallback_ydl:
+                        fallback_ydl.add_post_processor(filename_collector)
+                        fallback_ydl.download([url])
+                    return self.validate_path(filename_collector.filenames[0])
                 raise
 
         if len(filename_collector.filenames) <= 0:
