@@ -2,6 +2,8 @@ import base64
 import os
 import platform
 import shutil
+import subprocess
+import sys
 import gradio as gr
 from yt_dlp import YoutubeDL
 from yt_dlp.postprocessor import PostProcessor
@@ -36,6 +38,37 @@ def _youtube_cookiefile(download_folder: str) -> str | None:
     if os.path.exists(local_cookiefile):
         return local_cookiefile
     return None
+
+
+def _yt_dlp_cli_download(url: str, outtmpl: str, cookiefile_path: str | None, node_path: str | None) -> str:
+    command = [
+        sys.executable,
+        "-m",
+        "yt_dlp",
+        "--no-warnings",
+        "--remote-components",
+        "ejs:github",
+        "-f",
+        "bestaudio/best",
+        "--merge-output-format",
+        "mp4",
+        "--print",
+        "after_move:filepath",
+        "-o",
+        outtmpl,
+    ]
+    if cookiefile_path:
+        command.extend(["--cookies", cookiefile_path])
+    if node_path:
+        command.extend(["--js-runtimes", f"node:{node_path}"])
+    command.append(url)
+
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    candidates = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    for candidate in reversed(candidates):
+        if os.path.exists(candidate):
+            return candidate
+    raise Exception("yt-dlp CLI completed but did not report a downloaded file")
 
 
 class FilenameCollectorPP(PostProcessor):
@@ -97,6 +130,7 @@ class YoutubeDownloader:
         ydl_opts['remote_components'] = ['ejs:github']
 
         bun_path = os.path.expanduser('~/.bun/bin/bun')
+        node_path = None
         if os.path.exists(bun_path):
             ydl_opts['js_runtimes'] = {'bun': {'path': bun_path}}
         else:
@@ -165,13 +199,19 @@ class YoutubeDownloader:
                     ) from exc
                 if "Requested format is not available" in message:
                     logger.warning("[abus_downloader.py] requested format unavailable; retrying with bestaudio/best")
-                    fallback_opts = dict(ydl_opts)
-                    fallback_opts["format"] = "bestaudio/best"
-                    filename_collector.filenames.clear()
-                    with YoutubeDL(fallback_opts) as fallback_ydl:
-                        fallback_ydl.add_post_processor(filename_collector)
-                        fallback_ydl.download([url])
-                    return self.validate_path(filename_collector.filenames[0])
+                    try:
+                        return self.validate_path(
+                            _yt_dlp_cli_download(url, ydl_opts["outtmpl"], cookiefile_path, node_path)
+                        )
+                    except Exception as cli_exc:
+                        logger.warning(f"[abus_downloader.py] yt-dlp CLI fallback failed: {cli_exc}")
+                        fallback_opts = dict(ydl_opts)
+                        fallback_opts["format"] = "bestaudio/best"
+                        filename_collector.filenames.clear()
+                        with YoutubeDL(fallback_opts) as fallback_ydl:
+                            fallback_ydl.add_post_processor(filename_collector)
+                            fallback_ydl.download([url])
+                        return self.validate_path(filename_collector.filenames[0])
                 raise
 
         if len(filename_collector.filenames) <= 0:
