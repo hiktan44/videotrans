@@ -99,8 +99,13 @@ class YoutubeDownloader:
         bun_path = os.path.expanduser('~/.bun/bin/bun')
         if os.path.exists(bun_path):
             ydl_opts['js_runtimes'] = {'bun': {'path': bun_path}}
-        elif node_path := shutil.which("node"):
-            ydl_opts['js_runtimes'] = {'node': {'path': node_path}}
+        else:
+            node_path = shutil.which("node") or shutil.which("nodejs")
+            if node_path:
+                ydl_opts['js_runtimes'] = {'node': {'path': node_path}}
+                logger.info(f"[abus_downloader.py] using node runtime for yt-dlp JS challenges: {node_path}")
+            else:
+                logger.warning("[abus_downloader.py] node runtime not found; YouTube JS challenges may fail")
         
         # User Agent 설정 추가
         ydl_opts['http_headers'] = {
