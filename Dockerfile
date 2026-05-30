@@ -15,7 +15,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg git curl ca-certificates nodejs \
+    && apt-get install -y --no-install-recommends ffmpeg git curl ca-certificates nodejs npm \
     && if command -v nodejs >/dev/null 2>&1 && ! command -v node >/dev/null 2>&1; then ln -s "$(command -v nodejs)" /usr/local/bin/node; fi \
     && rm -rf /var/lib/apt/lists/*
 

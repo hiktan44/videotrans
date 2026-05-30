@@ -46,6 +46,8 @@ def _yt_dlp_cli_download(url: str, outtmpl: str, cookiefile_path: str | None, no
         "-m",
         "yt_dlp",
         "--remote-components",
+        "ejs:npm",
+        "--remote-components",
         "ejs:github",
         "-f",
         "bestaudio/best",
@@ -131,7 +133,7 @@ class YoutubeDownloader:
         ydl_opts['check_formats'] = False
         ydl_opts['merge_output_format'] = 'mp4'
         ydl_opts['extractor_args'] = {'youtube': {'player_client': ['web', 'android', 'ios']}}
-        ydl_opts['remote_components'] = ['ejs:github']
+        ydl_opts['remote_components'] = ['ejs:npm', 'ejs:github']
 
         bun_path = os.path.expanduser('~/.bun/bin/bun')
         node_path = None
