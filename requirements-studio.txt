@@ -9,7 +9,7 @@ pydub==0.25.1
 pysubs2==1.8.0
 deep-translator==1.11.4
 edge-tts==7.0.2
-yt-dlp==2025.11.12
+yt-dlp>=2026.03.17
 ffmpeg-python==0.2.0
 gradio==5.14.0
 numpy<2

@@ -1,6 +1,7 @@
 import base64
 import os
 import platform
+import shutil
 import gradio as gr
 from yt_dlp import YoutubeDL
 from yt_dlp.postprocessor import PostProcessor
@@ -93,10 +94,13 @@ class YoutubeDownloader:
         ydl_opts['check_formats'] = False
         ydl_opts['merge_output_format'] = 'mp4'
         ydl_opts['extractor_args'] = {'youtube': {'player_client': ['web', 'android', 'ios']}}
+        ydl_opts['remote_components'] = ['ejs:github']
 
         bun_path = os.path.expanduser('~/.bun/bin/bun')
         if os.path.exists(bun_path):
             ydl_opts['js_runtimes'] = {'bun': {'path': bun_path}}
+        elif node_path := shutil.which("node"):
+            ydl_opts['js_runtimes'] = {'node': {'path': node_path}}
         
         # User Agent 설정 추가
         ydl_opts['http_headers'] = {
