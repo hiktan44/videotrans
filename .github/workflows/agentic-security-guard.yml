@@ -1,0 +1,45 @@
+name: Agentic Security Guard CI
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan New Secrets & Hardcoded Keys (diff-based)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+          ADDED=$(git diff --unified=0 "$RANGE" 2>/dev/null | grep '^+' | grep -v '^+++' || true)
+          if echo "$ADDED" | grep -qE "(AIza[0-9A-Za-z-_]{35}|sk-[a-zA-Z0-9]{32,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z-]{10,}|AKIA[0-9A-Z]{16}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)"; then
+            echo "::error::Kritik Guvenlik Ihlali: Bu PR yeni bir hardcoded secretakteri iceriyor!"
+            exit 1
+          fi
+          echo "OK: Yeni secret sizmasi yok."
+
+      - name: IaC Open Firewall Policy Check
+        run: |
+          if grep -rn "0.0.0.0/0" ./terraform/ ./infra/ ./infrastructure/ 2>/dev/null | grep -v -E "( sg-|security_group_id|egress.*managed)"; then
+            echo "::error::Acik guvenlik duvari politikasi (0.0.0.0/0) tespit edildi!"
+            exit 1
+          fi
+          echo "OK: IaC politikalari temiz."
+
+      - name: Dockerfile Non-Root Advisory
+        run: |
+          for f in $(git ls-files 'Dockerfile*' '**/Dockerfile*'); do
+            if ! grep -qE "^USER\s+\S+" "$f"; then
+              echo "::warning file=$f::Dockerfile root olarak calisiyor (USER yok) - non-root gecis onerilir (Katman 2)"
+            fi
+          done
+          echo "Dockerfile denetimi tamamlandi."
