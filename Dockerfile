@@ -34,3 +34,7 @@ RUN mkdir -p workspace
 EXPOSE 8787
 
 CMD ["python", "start-api.py"]
+
+# --- Agentic Security Firewall: Katman 2 (non-root hardening) ---
+RUN (id -u appuser >/dev/null 2>&1 || useradd -m -u 10001 appuser) && { [ ! -d /app ] || chown -R appuser:appuser /app; }
+USER appuser
