@@ -1,0 +1,9 @@
+# VideoTrans
+
+> Video çeviri ve çok dilli içerik üretim platformu.
+
+- Resmî site: https://videotrans.app/
+- Gizlilik ve KVKK: https://videotrans.app/gizlilik/
+- Kullanım koşulları: https://videotrans.app/kullanim-kosullari/
+- Çerez politikası: https://videotrans.app/cerez-politikasi/
+- İletişim: https://videotrans.app/iletisim/
