@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="tr">
   <head>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b1020" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="VideoTrans" />
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VideoTrans — Yapay Zeka Transkripsiyon, Çeviri ve Dublaj</title>
@@ -31,5 +39,12 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   <!-- release-legal-footer:start --><footer style="padding:18px;text-align:center;font:14px system-ui;background:#0b1020;color:#dbeafe"><a style="color:#93c5fd;margin:0 8px" href="/gizlilik/">Gizlilik ve KVKK</a><a style="color:#93c5fd;margin:0 8px" href="/kullanim-kosullari/">Kullanım Koşulları</a><a style="color:#93c5fd;margin:0 8px" href="/cerez-politikasi/">Çerez Politikası</a><a style="color:#93c5fd;margin:0 8px" href="/iletisim/">İletişim</a></footer><!-- release-legal-footer:end -->
-</body>
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+      });
+    }
+  </script>
+</body></body>
 </html>
