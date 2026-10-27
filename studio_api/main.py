@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import ai_gateway
 from studio_api.jobs import copy_upload, dubbing_job, store, transcribe_job, translate_job
 
 
@@ -110,7 +111,7 @@ def require_auth(request: Request) -> None:
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "ai": ai_gateway.status()}
 
 
 @app.get("/api/auth/session")

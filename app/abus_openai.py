@@ -9,6 +9,7 @@ import requests
 from pydub import AudioSegment
 from pydub import effects
 
+from app import ai_gateway
 from app.abus_audio import AbusAudio
 from app.abus_config import (
     get_openai_api_key,
@@ -165,14 +166,13 @@ class OpenAITranscribeInference:
         data = {"model": "whisper-1", "response_format": "srt"}
         if language:
             data["language"] = language
-        with open(input_path, "rb") as audio_file:
-            response = requests.post(
-                f"{OPENAI_BASE_URL}/audio/transcriptions",
-                headers=_headers(content_type=None),
-                files={"file": audio_file},
-                data=data,
-                timeout=900,
-            )
+        response = ai_gateway.post(
+            f"{OPENAI_BASE_URL}/audio/transcriptions",
+            api_key=get_openai_api_key(),
+            file_path=input_path,
+            data=data,
+            timeout=900,
+        )
         _raise_for_openai_error(response)
         return response.text
 
@@ -184,14 +184,13 @@ class OpenAITranscribeInference:
         }
         if language:
             data["language"] = language
-        with open(input_path, "rb") as audio_file:
-            response = requests.post(
-                f"{OPENAI_BASE_URL}/audio/transcriptions",
-                headers=_headers(content_type=None),
-                files={"file": audio_file},
-                data=data,
-                timeout=900,
-            )
+        response = ai_gateway.post(
+            f"{OPENAI_BASE_URL}/audio/transcriptions",
+            api_key=get_openai_api_key(),
+            file_path=input_path,
+            data=data,
+            timeout=900,
+        )
         _raise_for_openai_error(response)
         payload = response.json()
         segments = payload.get("segments") or payload.get("chunks") or []
@@ -203,14 +202,13 @@ class OpenAITranscribeInference:
         data = {"model": model, "response_format": "json"}
         if language:
             data["language"] = language
-        with open(input_path, "rb") as audio_file:
-            response = requests.post(
-                f"{OPENAI_BASE_URL}/audio/transcriptions",
-                headers=_headers(content_type=None),
-                files={"file": audio_file},
-                data=data,
-                timeout=900,
-            )
+        response = ai_gateway.post(
+            f"{OPENAI_BASE_URL}/audio/transcriptions",
+            api_key=get_openai_api_key(),
+            file_path=input_path,
+            data=data,
+            timeout=900,
+        )
         _raise_for_openai_error(response)
         return response.json().get("text", "")
 
@@ -334,9 +332,10 @@ class OpenAITTS:
             return False
 
         voice = voice_name if voice_name in self.voices else "marin"
-        response = requests.post(
+        response = ai_gateway.post(
             f"{OPENAI_BASE_URL}/audio/speech",
-            headers=_headers(),
+            api_key=get_openai_api_key(),
+            headers={"Content-Type": "application/json"},
             json={
                 "model": get_openai_tts_model(),
                 "voice": voice,
