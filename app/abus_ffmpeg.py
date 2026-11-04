@@ -5,25 +5,36 @@ import ffmpeg
 import shutil
 import gradio as gr
 import re
+import shlex
 from typing import Optional
 
 import structlog
 logger = structlog.get_logger()
 
 
+def _run_ffmpeg(args: list) -> int:
+    """ffmpeg'i kabuk (shell) kullanmadan çalıştırır.
+
+    Dosya adları (yüklenen dosyanın uzantısı, indirilen videonun başlığı) komut satırına
+    kabuk üzerinden girmesin diye os.system yerine argüman listesi kullanılır. os.system gibi
+    hata fırlatmaz; çıkış kodunu döndürür.
+    """
+    try:
+        return subprocess.run([str(arg) for arg in args], check=False).returncode
+    except OSError as e:
+        logger.error(f'[abus:_run_ffmpeg] {e}')
+        return -1
+
+
 
 def ffmpeg_replace_audio(input_path: str, audio_path: str, output_path: str, progress = gr.Progress()):
     _, file_extension = os.path.splitext(os.path.basename(input_path))
-    
-    if file_extension == ".mp4":
-        command = f'ffmpeg -y -i "{input_path}" -i "{audio_path}" -c:v copy -map 0:v:0 -map 1:a:0 -c:a aac -shortest "{output_path}" -nostdin'
-    elif file_extension == ".webm":
-        command = f'ffmpeg -y -i "{input_path}" -i "{audio_path}" -c:v copy -map 0:v:0 -map 1:a:0 -c:a libopus -shortest "{output_path}" -nostdin'
-    else:
-        command = f'ffmpeg -y -i "{input_path}" -i "{audio_path}" -c:v copy -map 0:v:0 -map 1:a:0 -c:a aac -shortest "{output_path}" -nostdin'        
-        
+
+    audio_codec = "libopus" if file_extension == ".webm" else "aac"
+    command = ['ffmpeg', '-y', '-i', input_path, '-i', audio_path, '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0', '-c:a', audio_codec, '-shortest', output_path, '-nostdin']
+
     logger.debug(f'[abus:ffmpeg_replace_audio] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
     return output_path
 
 
@@ -36,10 +47,10 @@ def ffmpeg_extract_audio(input_path: str, output_path: str, audio_format: str = 
     elif audio_format=="ogg":
         encoding_options = "-acodec libvorbis -ar 48000 -b:a 320k -ac 2"
       
-    command = f'ffmpeg -y -i "{input_path}" -vn {encoding_options} "{output_path}" -nostdin'    
+    command = ['ffmpeg', '-y', '-i', input_path, '-vn', *shlex.split(encoding_options), output_path, '-nostdin']
     logger.debug(f'[abus:ffmpeg_extract_audio] {command}')
-    os.system(command)  
-    return output_path    
+    _run_ffmpeg(command)
+    return output_path
 
 
 def ffmpeg_codec_type(input_path: str):
@@ -182,9 +193,9 @@ def ffmpeg_mix_audio(audio_path1: str, audio_path2: str, output_path: str, audio
     elif audio_format=="ogg":
         encoding_options = "-c:a libvorbis -ar 48000 -b:a 320k -ac 2"    
     
-    command = f'ffmpeg -y -i "{audio_path1}" -i "{audio_path2}" -filter_complex "{filter_complex}" {encoding_options} "{output_path}" -nostdin'
+    command = ['ffmpeg', '-y', '-i', audio_path1, '-i', audio_path2, '-filter_complex', filter_complex, *shlex.split(encoding_options), output_path, '-nostdin']
     logger.debug(f'[abus:ffmpeg_mix_audio] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
 
 
 
@@ -197,9 +208,9 @@ def ffmpeg_convert_audio(input_path: str, output_path: str, audio_format: str):
     elif audio_format=="ogg":
         encoding_options = "-c:a libvorbis -ar 48000 -b:a 320k -ac 2"
         
-    command = f'ffmpeg -y -i "{input_path}" {encoding_options} "{output_path}" -nostdin'             
+    command = ['ffmpeg', '-y', '-i', input_path, *shlex.split(encoding_options), output_path, '-nostdin']
     logger.debug(f'[abus:ffmpeg_convert_audio] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
 
 
 
@@ -214,9 +225,9 @@ def ffmpeg_to_mono(input_path: str, left_path: str, right_path: str, audio_forma
     elif audio_format=="ogg":
         encoding_options = "-c:a libvorbis -ar 48000 -b:a 320k"    
 
-    command = f'ffmpeg -y -i "{input_path}" -filter_complex "{filter_complex}" -map "[left]" {encoding_options} "{left_path}" -map "[right]" {encoding_options} "{right_path}"'
+    command = ['ffmpeg', '-y', '-i', input_path, '-filter_complex', filter_complex, '-map', '[left]', *shlex.split(encoding_options), left_path, '-map', '[right]', *shlex.split(encoding_options), right_path]
     logger.debug(f'[abus:ffmpeg_to_mono] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
 
 
 
@@ -236,9 +247,9 @@ def ffmpeg_to_stereo(left_path, right_path, stereo_path):
     elif ext==".ogg":
         encoding_options = "-c:a libvorbis -ar 48000 -b:a 320k -ac 2"        
     
-    command = f'ffmpeg -y -i "{left_path}" -i "{right_path}" -filter_complex "{filter_complex}" -map "[a]" {encoding_options} "{stereo_path}"'
+    command = ['ffmpeg', '-y', '-i', left_path, '-i', right_path, '-filter_complex', filter_complex, '-map', '[a]', *shlex.split(encoding_options), stereo_path]
     logger.debug(f'[abus:ffmpeg_to_stereo] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
     return True
 
 
@@ -254,25 +265,24 @@ def ffmpeg_to_stereo(mono_path, stereo_path):
     elif ext==".ogg":
         encoding_options = "-c:a libvorbis -ar 48000 -b:a 320k -ac 2"        
     
-    command = f'ffmpeg -y -i "{mono_path}" {encoding_options} "{stereo_path}"'
+    command = ['ffmpeg', '-y', '-i', mono_path, *shlex.split(encoding_options), stereo_path]
     logger.debug(f'[abus:ffmpeg_to_stereo] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
     return True
 
 # audio_gain: decibel 
 def ffmpeg_volume_control(input_path: str, output_path: str, audio_gain: float):
     volume = f"{audio_gain}dB"
-    encoding_options = f'-filter:a "volume={volume}"'
-        
-    command = f'ffmpeg -y -i "{input_path}" {encoding_options} "{output_path}" -nostdin'             
+
+    command = ['ffmpeg', '-y', '-i', input_path, '-filter:a', f'volume={volume}', output_path, '-nostdin']
     logger.debug(f'[abus:ffmpeg_volume_control] {command}')
-    os.system(command)
-    
-    
+    _run_ffmpeg(command)
+
+
 def ffmpeg_trim_seconds(input_path: str, output_path: str, seconds: float):
-    command = f'ffmpeg -y -ss 00:00:00 -i "{input_path}" -t {seconds} -c copy "{output_path}"'
+    command = ['ffmpeg', '-y', '-ss', '00:00:00', '-i', input_path, '-t', str(seconds), '-c', 'copy', output_path]
     logger.debug(f'[abus:ffmpeg_trim_seconds] {command}')
-    os.system(command)
+    _run_ffmpeg(command)
     return True
 
 
