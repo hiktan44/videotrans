@@ -1,9 +1,9 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
-python-dotenv==1.0.1
+python-multipart==0.0.31
+python-dotenv==1.2.2
 structlog==24.4.0
-requests==2.32.3
+requests==2.33.1
 simplejson==3.19.3
 pydub==0.25.1
 pysubs2==1.8.0
