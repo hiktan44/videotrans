@@ -38,7 +38,8 @@ def safe_upload_suffix(filename: Optional[str], default: str = ".bin") -> str:
 
 
 def is_private_job_file(filename: str) -> bool:
-    return filename in PRIVATE_JOB_FILES or filename.endswith(".tmp")
+    lowered = filename.lower()
+    return lowered in PRIVATE_JOB_FILES or lowered.endswith(".tmp")
 
 
 def max_upload_bytes() -> int:
@@ -57,7 +58,7 @@ def _is_public_address(address: str) -> bool:
     mapped = getattr(ip, "ipv4_mapped", None)
     if mapped is not None:
         ip = mapped
-    return ip.is_global and not ip.is_multicast
+    return ip.is_global and not ip.is_multicast and not ip.is_reserved
 
 
 def normalize_media_url(url: str) -> str:

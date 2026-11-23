@@ -21,7 +21,7 @@ from app.abus_downloader import YoutubeDownloader
 from app.abus_ffmpeg import ffmpeg_codec_type, ffmpeg_extract_audio
 from app.abus_openai import OpenAITranscribeInference, OpenAITTS
 from app.abus_zai import ZAITranscribeInference, ZAITranslator
-from studio_api.security import is_valid_job_id, safe_upload_suffix
+from studio_api.security import is_private_job_file, is_valid_job_id, safe_upload_suffix
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -345,14 +345,21 @@ def _resolve_media_path(media_job_id: Optional[str], media_href: Optional[str]) 
             href = (media_job.get("outputs") or {}).get("media")
             if href:
                 filename = href.rstrip("/").split("/")[-1]
-                return store.output_path(media_job_id, filename)
+                if not is_private_job_file(filename):
+                    try:
+                        return store.output_path(media_job_id, filename)
+                    except ValueError:
+                        return None
             input_path = media_job.get("params", {}).get("input_path")
             if input_path:
                 return Path(input_path)
     if media_href and "/api/jobs/" in media_href:
         parts = media_href.split("/api/jobs/", 1)[1].split("/")
-        if len(parts) >= 3 and is_valid_job_id(parts[0]):
-            return store.output_path(parts[0], parts[-1])
+        if len(parts) == 3 and parts[1] == "files" and is_valid_job_id(parts[0]) and not is_private_job_file(parts[2]):
+            try:
+                return store.output_path(parts[0], parts[2])
+            except ValueError:
+                return None
     return None
 
 

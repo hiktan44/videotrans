@@ -40,19 +40,31 @@ class SecurityHelperTests(unittest.TestCase):
         self.assertEqual(security.safe_upload_suffix(None), ".bin")
 
     def test_private_job_files(self):
-        for name in ("job.json", "youtube_cookies.txt", "job.json.tmp"):
-            self.assertTrue(security.is_private_job_file(name))
+        for name in ("job.json", "JOB.JSON", "youtube_cookies.txt", "Youtube_Cookies.txt", "job.json.tmp", "x.TMP"):
+            self.assertTrue(security.is_private_job_file(name), name)
         self.assertFalse(security.is_private_job_file("translated.srt"))
 
     def test_media_url_scheme_and_private_hosts(self):
         self.assertIsNotNone(security.validate_media_url("file:///etc/passwd"))
         self.assertIsNotNone(security.validate_media_url("ftp://example.com/a.mp4"))
         self.assertIsNotNone(security.validate_media_url("--exec=id"))
-        for address in ("127.0.0.1", "10.0.0.5", "169.254.169.254", "192.168.1.1", "100.64.0.1", "::1", "::ffff:127.0.0.1", "fd00::1", "0.0.0.0"):
+        for address in (
+            "127.0.0.1",
+            "10.0.0.5",
+            "169.254.169.254",
+            "192.168.1.1",
+            "100.64.0.1",
+            "::1",
+            "::ffff:127.0.0.1",
+            "64:ff9b::127.0.0.1",
+            "fd00::1",
+            "0.0.0.0",
+        ):
             with mock.patch("socket.getaddrinfo", _fake_getaddrinfo(address)):
                 self.assertIsNotNone(security.validate_media_url("https://media.example.com/v"), address)
-        with mock.patch("socket.getaddrinfo", _fake_getaddrinfo("142.250.185.78")):
-            self.assertIsNone(security.validate_media_url("https://www.youtube.com/watch?v=abc"))
+        for public_address in ("142.250.185.78", "2607:f8b0:4004:c07::71"):
+            with mock.patch("socket.getaddrinfo", _fake_getaddrinfo(public_address)):
+                self.assertIsNone(security.validate_media_url("https://www.youtube.com/watch?v=abc"), public_address)
         self.assertIsNotNone(security.validate_media_url("http://127.0.0.1:8787/health"))
 
     def test_media_url_normalization(self):
@@ -111,6 +123,100 @@ class FfmpegNoShellTests(unittest.TestCase):
             if shutil.which("ffmpeg"):
                 abus_ffmpeg.ffmpeg_extract_audio(evil_input, evil_output, "mp3")
             self.assertFalse(marker.exists())
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+
+class DownloaderCookieIsolationTests(unittest.TestCase):
+    def test_env_cookies_are_unique_per_download_and_cleaned_up(self):
+        from app import abus_downloader
+
+        job_dir = tempfile.mkdtemp()
+        try:
+            encoded = base64.b64encode(b"# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tsecret\n").decode()
+            clean_env = {
+                "YTDLP_COOKIES_B64": encoded,
+                "YTDLP_COOKIES_PATH": "",
+                "YOUTUBE_COOKIES_PATH": "",
+                "YOUTUBE_COOKIES_B64": "",
+                "YTDLP_COOKIES": "",
+                "YOUTUBE_COOKIES": "",
+            }
+            with mock.patch.dict(os.environ, clean_env):
+                first = abus_downloader._youtube_cookiefile(job_dir)
+                second = abus_downloader._youtube_cookiefile(job_dir)
+                try:
+                    self.assertIsNotNone(first)
+                    self.assertIsNotNone(second)
+                    self.assertNotEqual(first, second)
+                    self.assertNotEqual(Path(first).parent.resolve(), Path(job_dir).resolve())
+                    self.assertEqual(os.stat(first).st_mode & 0o777, 0o600)
+                    self.assertEqual(os.stat(Path(first).parent).st_mode & 0o777, 0o700)
+                    self.assertIn("SID\tsecret", Path(first).read_text(encoding="utf-8"))
+                    self.assertIn("SID\tsecret", Path(second).read_text(encoding="utf-8"))
+                finally:
+                    for path in (first, second):
+                        if path and os.path.exists(path):
+                            os.remove(path)
+
+                seen_cookiefiles = []
+
+                class FakeYoutubeDL:
+                    def __init__(self, opts):
+                        self.opts = opts
+                        seen_cookiefiles.append(opts.get("cookiefile"))
+
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+                    def add_post_processor(self, pp):
+                        pass
+
+                    def download(self, urls):
+                        self.assert_path = self.opts["cookiefile"]
+                        assert os.path.exists(self.assert_path)
+                        raise RuntimeError("stop after cookie check")
+
+                with mock.patch.object(abus_downloader, "YoutubeDL", FakeYoutubeDL):
+                    with self.assertRaises(RuntimeError):
+                        abus_downloader.YoutubeDownloader().yt_download("https://www.youtube.com/watch?v=abc", job_dir)
+                self.assertEqual(len(seen_cookiefiles), 1)
+                self.assertFalse(os.path.exists(seen_cookiefiles[0]))
+        finally:
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+    def test_configured_cookie_path_is_not_deleted(self):
+        from app import abus_downloader
+
+        workdir = tempfile.mkdtemp()
+        try:
+            configured = Path(workdir) / "operator_cookies.txt"
+            configured.write_text("# cookie\n", encoding="utf-8")
+
+            class FakeYoutubeDL:
+                def __init__(self, opts):
+                    self.opts = opts
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def add_post_processor(self, pp):
+                    pass
+
+                def download(self, urls):
+                    raise RuntimeError("stop")
+
+            with mock.patch.dict(os.environ, {"YTDLP_COOKIES_PATH": str(configured), "YTDLP_COOKIES_B64": ""}), \
+                    mock.patch.object(abus_downloader, "YoutubeDL", FakeYoutubeDL):
+                with self.assertRaises(RuntimeError):
+                    abus_downloader.YoutubeDownloader().yt_download("https://www.youtube.com/watch?v=abc", workdir)
+            self.assertTrue(configured.exists())
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
@@ -186,11 +292,22 @@ class StudioApiSecurityTests(unittest.TestCase):
         job_dir = self.jobs.store.job_dir(job["id"])
         (job_dir / "translated.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\nMerhaba\n", encoding="utf-8")
         (job_dir / "youtube_cookies.txt").write_text("cookie", encoding="utf-8")
+        (job_dir / "sub").mkdir()
+        (job_dir / "sub" / "secret.txt").write_text("secret", encoding="utf-8")
         self.jobs.store.update(job["id"], status="failed", outputs={"traceback": "Traceback /app/x.py", "srt": f"/api/jobs/{job['id']}/files/translated.srt"})
 
         ok = self.client.get(f"/api/jobs/{job['id']}/files/translated.srt")
         self.assertEqual(ok.status_code, 200)
-        for name in ("job.json", "youtube_cookies.txt", "%2e%2e", "%2e"):
+        for name in (
+            "job.json",
+            "JOB.JSON",
+            "youtube_cookies.txt",
+            ".%2Fjob.json",
+            ".%2Fyoutube_cookies.txt",
+            "sub%2Fsecret.txt",
+            "%2e%2e",
+            "%2e",
+        ):
             self.assertEqual(self.client.get(f"/api/jobs/{job['id']}/files/{name}").status_code, 404, name)
         self.assertEqual(self.client.get("/api/jobs/not-a-job/files/translated.srt").status_code, 404)
 
@@ -207,6 +324,11 @@ class StudioApiSecurityTests(unittest.TestCase):
             self.jobs.store.output_path(job["id"], "..")
         self.assertIsNone(self.jobs._resolve_media_path("../../etc", None))
         self.assertIsNone(self.jobs._resolve_media_path(None, "/api/jobs/../files/x"))
+        self.assertIsNone(self.jobs._resolve_media_path(None, f"/api/jobs/{job['id']}/files/job.json"))
+        self.assertIsNone(self.jobs._resolve_media_path(None, f"/api/jobs/{job['id']}/files/.."))
+        self.assertIsNone(self.jobs._resolve_media_path(None, f"/api/jobs/{job['id']}/other/input.mp4"))
+        resolved = self.jobs._resolve_media_path(None, f"/api/jobs/{job['id']}/files/input.mp4")
+        self.assertEqual(resolved, (self.jobs.store.job_dir(job["id"]) / "input.mp4").resolve())
 
     def test_copy_upload_suffix(self):
         job = self.jobs.store.create("transcribe_upload", {})

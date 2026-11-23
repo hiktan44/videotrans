@@ -384,11 +384,13 @@ def get_job_file(job_id: str, filename: str, _: None = Depends(require_auth)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     # job.json (yığın izi, iç yollar) ve çerez dosyası gibi iç dosyalar sunulmaz.
-    if is_private_job_file(filename):
+    if "/" in filename or "\\" in filename or is_private_job_file(filename):
         raise HTTPException(status_code=404, detail="File not found")
     try:
         path = store.output_path(job_id, filename)
     except ValueError:
+        raise HTTPException(status_code=404, detail="File not found")
+    if path.parent != store.job_dir(job_id).resolve() or is_private_job_file(path.name):
         raise HTTPException(status_code=404, detail="File not found")
     if not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")

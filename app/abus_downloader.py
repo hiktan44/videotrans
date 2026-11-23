@@ -1,3 +1,4 @@
+import atexit
 import base64
 import os
 import platform
@@ -5,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import gradio as gr
 from yt_dlp import YoutubeDL
 from yt_dlp.postprocessor import PostProcessor
@@ -16,6 +18,17 @@ logger = structlog.get_logger()
 
 
 _PRIVATE_COOKIE_DIR = None
+_PRIVATE_COOKIE_LOCK = threading.Lock()
+
+
+def _cleanup_private_cookie_dir() -> None:
+    with _PRIVATE_COOKIE_LOCK:
+        private_dir = _PRIVATE_COOKIE_DIR
+    if private_dir and os.path.isdir(private_dir):
+        shutil.rmtree(private_dir, ignore_errors=True)
+
+
+atexit.register(_cleanup_private_cookie_dir)
 
 
 def _private_cookie_dir() -> str:
@@ -24,9 +37,25 @@ def _private_cookie_dir() -> str:
     Çerezler indirme klasörüne (iş klasörü, /api/jobs/<id>/files/ ile sunulur) yazılmaz.
     """
     global _PRIVATE_COOKIE_DIR
-    if not _PRIVATE_COOKIE_DIR or not os.path.isdir(_PRIVATE_COOKIE_DIR):
-        _PRIVATE_COOKIE_DIR = tempfile.mkdtemp(prefix="videotrans-ytdlp-")
-    return _PRIVATE_COOKIE_DIR
+    with _PRIVATE_COOKIE_LOCK:
+        if not _PRIVATE_COOKIE_DIR or not os.path.isdir(_PRIVATE_COOKIE_DIR):
+            _PRIVATE_COOKIE_DIR = tempfile.mkdtemp(prefix="videotrans-ytdlp-")
+        return _PRIVATE_COOKIE_DIR
+
+
+def _is_managed_cookiefile(path: str | None) -> bool:
+    if not path:
+        return False
+    with _PRIVATE_COOKIE_LOCK:
+        private_dir = _PRIVATE_COOKIE_DIR
+    if not private_dir:
+        return False
+    try:
+        real_path = os.path.realpath(path)
+        real_dir = os.path.realpath(private_dir)
+        return real_path != real_dir and os.path.commonpath([real_path, real_dir]) == real_dir
+    except ValueError:
+        return False
 
 
 def _youtube_cookiefile(download_folder: str) -> str | None:
@@ -37,17 +66,27 @@ def _youtube_cookiefile(download_folder: str) -> str | None:
     encoded_cookies = os.getenv("YTDLP_COOKIES_B64") or os.getenv("YOUTUBE_COOKIES_B64")
     plain_cookies = os.getenv("YTDLP_COOKIES") or os.getenv("YOUTUBE_COOKIES")
     if encoded_cookies or plain_cookies:
+        cookiefile_path = None
         try:
-            cookiefile_path = os.path.join(_private_cookie_dir(), "youtube_cookies.txt")
             if encoded_cookies:
                 cookie_content = base64.b64decode(encoded_cookies).decode("utf-8")
             else:
                 cookie_content = plain_cookies.replace("\\n", "\n")
-            fd = os.open(cookiefile_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            # Eşzamanlı indirmelerde kesme/bozulma yarışını önlemek için indirme başına benzersiz (0600) dosya.
+            fd, cookiefile_path = tempfile.mkstemp(
+                prefix="youtube_cookies_",
+                suffix=".txt",
+                dir=_private_cookie_dir(),
+            )
             with os.fdopen(fd, "w", encoding="utf-8") as cookie_file:
                 cookie_file.write(cookie_content)
             return cookiefile_path
         except Exception as exc:
+            if cookiefile_path:
+                try:
+                    os.remove(cookiefile_path)
+                except OSError:
+                    pass
             logger.error(f"[abus_downloader.py] cookiefile setup failed: {exc}")
 
     local_cookiefile = os.path.join(os.getcwd(), "cookies.txt")
@@ -171,79 +210,84 @@ class YoutubeDownloader:
         }        
         
         cookiefile_path = _youtube_cookiefile(download_folder)
-        if cookiefile_path:
-            ydl_opts['cookiefile'] = cookiefile_path
-        elif platform.system() == "Linux":
-            logger.warning("[abus_downloader.py] no YouTube cookiefile configured; some videos may require sign-in cookies")
+        try:
+            if cookiefile_path:
+                ydl_opts['cookiefile'] = cookiefile_path
+            elif platform.system() == "Linux":
+                logger.warning("[abus_downloader.py] no YouTube cookiefile configured; some videos may require sign-in cookies")
 
-        
-        if quality == "best":
-            ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
-        elif quality == "good":
-            ydl_opts['format'] = (
-                'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/'
-                'bestvideo[height<=720]+bestaudio/'
-                'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
-            )
-        elif quality in ("low", "worst"):
-            ydl_opts['format'] = (
-                'bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/'
-                'bestvideo[height<=360]+bestaudio/'
-                'best[ext=mp4][height<=360]/best[height<=360]/worst[ext=mp4]/worst/best'
-            )
-        else:
-            ydl_opts['format'] = 'best[ext=mp4]/best'
+            if quality == "best":
+                ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
+            elif quality == "good":
+                ydl_opts['format'] = (
+                    'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/'
+                    'bestvideo[height<=720]+bestaudio/'
+                    'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
+                )
+            elif quality in ("low", "worst"):
+                ydl_opts['format'] = (
+                    'bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/'
+                    'bestvideo[height<=360]+bestaudio/'
+                    'best[ext=mp4][height<=360]/best[height<=360]/worst[ext=mp4]/worst/best'
+                )
+            else:
+                ydl_opts['format'] = 'best[ext=mp4]/best'
 
-        output_template = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
-        ydl_opts['outtmpl'] = output_template
+            output_template = download_folder + '/%(title)s.f%(format_id)s.%(ext)s'
+            ydl_opts['outtmpl'] = output_template
 
-        filename_collector = FilenameCollectorPP()
-        with YoutubeDL(ydl_opts) as ydl:
-            if maxDuration and maxDuration > 0:
-                info = ydl.extract_info(url, download=False)
-                entries = "entries" in info and info["entries"] or [info]
-                total_duration = 0
+            filename_collector = FilenameCollectorPP()
+            with YoutubeDL(ydl_opts) as ydl:
+                if maxDuration and maxDuration > 0:
+                    info = ydl.extract_info(url, download=False)
+                    entries = "entries" in info and info["entries"] or [info]
+                    total_duration = 0
 
-                # Compute total duration
-                for entry in entries:
-                    total_duration += float(entry["duration"])
+                    # Compute total duration
+                    for entry in entries:
+                        total_duration += float(entry["duration"])
 
-                if total_duration >= maxDuration:
-                    raise ExceededMaximumDuration(videoDuration=total_duration, maxDuration=maxDuration, message="Video is too long")
+                    if total_duration >= maxDuration:
+                        raise ExceededMaximumDuration(videoDuration=total_duration, maxDuration=maxDuration, message="Video is too long")
 
-            ydl.add_post_processor(filename_collector)
-            try:
-                ydl.download([url])
-            except Exception as exc:
-                message = str(exc)
-                if "Sign in to confirm" in message or "not a bot" in message:
-                    raise Exception(
-                        "YouTube bot doğrulamasına takıldı. Coolify env içine YTDLP_COOKIES_B64 "
-                        "veya YTDLP_COOKIES_PATH eklenmeli. YouTube cookies.txt dosyasını Netscape formatında export edip base64 olarak girin."
-                    ) from exc
-                if "Requested format is not available" in message:
-                    logger.warning("[abus_downloader.py] requested format unavailable; retrying with bestaudio/best")
-                    try:
-                        return self.validate_path(
-                            _yt_dlp_cli_download(url, output_template, cookiefile_path, node_path)
-                        )
-                    except Exception as cli_exc:
-                        logger.warning(f"[abus_downloader.py] yt-dlp CLI fallback failed: {cli_exc}")
-                        fallback_opts = dict(ydl_opts)
-                        fallback_opts["format"] = "bestaudio/best"
-                        filename_collector.filenames.clear()
-                        with YoutubeDL(fallback_opts) as fallback_ydl:
-                            fallback_ydl.add_post_processor(filename_collector)
-                            fallback_ydl.download([url])
-                        return self.validate_path(filename_collector.filenames[0])
-                raise
+                ydl.add_post_processor(filename_collector)
+                try:
+                    ydl.download([url])
+                except Exception as exc:
+                    message = str(exc)
+                    if "Sign in to confirm" in message or "not a bot" in message:
+                        raise Exception(
+                            "YouTube bot doğrulamasına takıldı. Coolify env içine YTDLP_COOKIES_B64 "
+                            "veya YTDLP_COOKIES_PATH eklenmeli. YouTube cookies.txt dosyasını Netscape formatında export edip base64 olarak girin."
+                        ) from exc
+                    if "Requested format is not available" in message:
+                        logger.warning("[abus_downloader.py] requested format unavailable; retrying with bestaudio/best")
+                        try:
+                            return self.validate_path(
+                                _yt_dlp_cli_download(url, output_template, cookiefile_path, node_path)
+                            )
+                        except Exception as cli_exc:
+                            logger.warning(f"[abus_downloader.py] yt-dlp CLI fallback failed: {cli_exc}")
+                            fallback_opts = dict(ydl_opts)
+                            fallback_opts["format"] = "bestaudio/best"
+                            filename_collector.filenames.clear()
+                            with YoutubeDL(fallback_opts) as fallback_ydl:
+                                fallback_ydl.add_post_processor(filename_collector)
+                                fallback_ydl.download([url])
+                            return self.validate_path(filename_collector.filenames[0])
+                    raise
 
-        if len(filename_collector.filenames) <= 0:
-            raise Exception("Cannot download " + url)
-        
-        
-        valid_path = self.validate_path(filename_collector.filenames[0])
-        return valid_path
+            if len(filename_collector.filenames) <= 0:
+                raise Exception("Cannot download " + url)
+
+            valid_path = self.validate_path(filename_collector.filenames[0])
+            return valid_path
+        finally:
+            if _is_managed_cookiefile(cookiefile_path):
+                try:
+                    os.remove(cookiefile_path)
+                except OSError:
+                    pass
                 
 
                 
