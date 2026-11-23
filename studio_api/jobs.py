@@ -21,6 +21,7 @@ from app.abus_downloader import YoutubeDownloader
 from app.abus_ffmpeg import ffmpeg_codec_type, ffmpeg_extract_audio
 from app.abus_openai import OpenAITranscribeInference, OpenAITTS
 from app.abus_zai import ZAITranscribeInference, ZAITranslator
+from studio_api.security import is_valid_job_id, safe_upload_suffix
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,8 @@ class JobStore:
         return job
 
     def get(self, job_id: str) -> Optional[Dict]:
+        if not is_valid_job_id(job_id):
+            return None
         path = self._job_file(job_id)
         if not path.exists():
             return None
@@ -84,8 +87,11 @@ class JobStore:
         return self.root / job_id
 
     def output_path(self, job_id: str, filename: str) -> Path:
-        path = (self.job_dir(job_id) / filename).resolve()
-        if not str(path).startswith(str(self.job_dir(job_id).resolve())):
+        if not is_valid_job_id(job_id):
+            raise ValueError("Invalid file path")
+        base = self.job_dir(job_id).resolve()
+        path = (base / filename).resolve()
+        if base not in path.parents:
             raise ValueError("Invalid file path")
         return path
 
@@ -126,7 +132,8 @@ def enqueue(kind: str, params: Dict, fn: Callable[[Dict, Callable[[float, str], 
 
 
 def copy_upload(job_id: str, source_path: str, original_name: str) -> Path:
-    suffix = Path(original_name).suffix or Path(source_path).suffix or ".bin"
+    # Uzantı kullanıcının dosya adından gelir; yalnız harf/rakam kabul edilir (komut/yol enjeksiyonu).
+    suffix = safe_upload_suffix(original_name, "") or safe_upload_suffix(source_path)
     target = store.job_dir(job_id) / f"input{suffix}"
     shutil.copyfile(source_path, target)
     return target
@@ -332,7 +339,7 @@ def dubbing_job(job: Dict, report: Callable[[float, str], None]) -> Dict:
 
 
 def _resolve_media_path(media_job_id: Optional[str], media_href: Optional[str]) -> Optional[Path]:
-    if media_job_id:
+    if media_job_id and is_valid_job_id(media_job_id):
         media_job = store.get(media_job_id)
         if media_job:
             href = (media_job.get("outputs") or {}).get("media")
@@ -344,7 +351,7 @@ def _resolve_media_path(media_job_id: Optional[str], media_href: Optional[str]) 
                 return Path(input_path)
     if media_href and "/api/jobs/" in media_href:
         parts = media_href.split("/api/jobs/", 1)[1].split("/")
-        if len(parts) >= 3:
+        if len(parts) >= 3 and is_valid_job_id(parts[0]):
             return store.output_path(parts[0], parts[-1])
     return None
 

@@ -10,11 +10,22 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from app import ai_gateway
 from studio_api.jobs import copy_upload, dubbing_job, store, transcribe_job, translate_job
+from studio_api.security import (
+    ALLOWED_AUDIO_FORMATS,
+    PLACEHOLDER_SESSION_SECRETS,
+    FailureLimiter,
+    is_private_job_file,
+    max_upload_bytes,
+    normalize_media_url,
+    safe_upload_suffix,
+    validate_media_url,
+)
 
 
 app = FastAPI(title="Voice-Pro Studio API", version="0.1.0")
@@ -49,6 +60,19 @@ SECURITY_HEADERS = {
 
 
 @app.middleware("http")
+async def guard_job_requests(request: Request, call_next):
+    # FastAPI çok parçalı gövdeyi Depends(require_auth) çalışmadan önce ayrıştırır; girişsiz
+    # istekler büyük yüklemeyi diske yazdırmasın diye iş uçlarında oturum ve boyut erkenden denetlenir.
+    if request.method == "POST" and request.url.path.startswith("/api/jobs/"):
+        if not _verify_session(request.cookies.get(AUTH_COOKIE)):
+            return JSONResponse({"detail": "Login required"}, status_code=401)
+        content_length = request.headers.get("content-length", "")
+        if content_length.isdigit() and int(content_length) > max_upload_bytes() + 1024 * 1024:
+            return JSONResponse({"detail": "Upload is too large"}, status_code=413)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     for name, value in SECURITY_HEADERS.items():
@@ -58,6 +82,8 @@ async def add_security_headers(request: Request, call_next):
 AUTH_COOKIE = "videotrans_session"
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
 REDACTED_JOB_PARAMS = {"input_path", "source_text", "subtitle_text"}
+# Giriş denemesi sınırı: IP başına 10, toplamda 100 hatalı deneme / 15 dk (IP başlığı taklit edilebilir).
+LOGIN_LIMITER = FailureLimiter(per_key=10, total=100, window_seconds=15 * 60)
 
 
 def _public_job(job: dict) -> dict:
@@ -67,6 +93,10 @@ def _public_job(job: dict) -> dict:
         if key in params:
             params[key] = "[redacted]"
     public["params"] = params
+    # Yığın izi (iç yollar, kod) diskteki job.json'da kalır, istemciye gönderilmez.
+    outputs = dict(public.get("outputs") or {})
+    outputs.pop("traceback", None)
+    public["outputs"] = outputs
     return public
 
 
@@ -75,7 +105,10 @@ def _app_password() -> str:
 
 
 def _session_secret() -> str:
-    return os.getenv("VIDEOTRANS_SESSION_SECRET") or _app_password() or "videotrans-dev"
+    configured = os.getenv("VIDEOTRANS_SESSION_SECRET", "")
+    if configured.strip() in PLACEHOLDER_SESSION_SECRETS:
+        configured = ""
+    return configured or _app_password() or "videotrans-dev"
 
 
 def _auth_enabled() -> bool:
@@ -120,11 +153,21 @@ def auth_session(request: Request):
 
 
 @app.post("/api/auth/login")
-def auth_login(response: Response, password: str = Form(...)):
+def auth_login(request: Request, response: Response, password: str = Form(...)):
     if not _auth_enabled():
         return {"enabled": False, "authenticated": True}
-    if not hmac.compare_digest(password, _app_password()):
+    client_key = request.client.host if request.client else "unknown"
+    retry_after = LOGIN_LIMITER.retry_after(client_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    if not hmac.compare_digest(password.encode("utf-8"), _app_password().encode("utf-8")):
+        LOGIN_LIMITER.record_failure(client_key)
         raise HTTPException(status_code=401, detail="Invalid password")
+    LOGIN_LIMITER.reset(client_key)
     token = _sign_session({"sub": "videotrans", "exp": int(time.time()) + SESSION_MAX_AGE, "nonce": secrets.token_hex(8)})
     response.set_cookie(
         AUTH_COOKIE,
@@ -156,35 +199,55 @@ async def create_transcribe_job(
 ):
     if not file and not youtube_url.strip():
         raise HTTPException(status_code=400, detail="Upload a file or enter a media URL")
+    if audio_format not in ALLOWED_AUDIO_FORMATS:
+        raise HTTPException(status_code=400, detail="Unsupported audio format")
+    if not file:
+        # SSRF: yalnız http/https ve herkese açık internet adresine çözülen sunucular.
+        youtube_url = normalize_media_url(youtube_url)
+        url_error = await run_in_threadpool(validate_media_url, youtube_url)
+        if url_error:
+            raise HTTPException(status_code=400, detail=url_error)
 
-    job = store.create(
-        "transcribe_upload",
-        {
-            "filename": file.filename if file else None,
-            "youtube_url": youtube_url.strip() or None,
-            "video_quality": video_quality,
-            "provider": provider,
-            "model": model,
-            "language": language,
-            "audio_format": audio_format,
-        },
-    )
+    tmp_path = None
+    try:
+        if file:
+            # Yükleme belleğe alınmadan parça parça diske yazılır; üst sınır VIDEOTRANS_MAX_UPLOAD_MB.
+            limit = max_upload_bytes()
+            size = 0
+            with tempfile.NamedTemporaryFile(delete=False, suffix=safe_upload_suffix(file.filename)) as tmp:
+                tmp_path = tmp.name
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > limit:
+                        raise HTTPException(status_code=413, detail="Upload is too large")
+                    tmp.write(chunk)
 
-    if file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename or "upload.bin").suffix) as tmp:
-            tmp.write(await file.read())
-            tmp_path = tmp.name
+        job = store.create(
+            "transcribe_upload",
+            {
+                "filename": file.filename if file else None,
+                "youtube_url": youtube_url.strip() or None,
+                "video_quality": video_quality,
+                "provider": provider,
+                "model": model,
+                "language": language,
+                "audio_format": audio_format,
+            },
+        )
 
-        try:
+        if file:
             input_path = copy_upload(job["id"], tmp_path, file.filename or "upload.bin")
-        finally:
+            job["params"]["input_path"] = str(input_path)
+            store.save(job)
+    finally:
+        if tmp_path:
             try:
                 os.remove(tmp_path)
             except OSError:
                 pass
-
-        job["params"]["input_path"] = str(input_path)
-        store.save(job)
 
     store.update(job["id"], status="queued", message="Queued")
     from studio_api.jobs import executor
@@ -266,6 +329,8 @@ async def create_dubbing_job(
     speed: float = Form(1.0),
     audio_format: str = Form("mp3"),
 ):
+    if audio_format not in ALLOWED_AUDIO_FORMATS:
+        raise HTTPException(status_code=400, detail="Unsupported audio format")
     job = store.create(
         "dubbing",
         {
@@ -318,8 +383,14 @@ def get_job_file(job_id: str, filename: str, _: None = Depends(require_auth)):
     job = store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    path = store.output_path(job_id, filename)
-    if not path.exists():
+    # job.json (yığın izi, iç yollar) ve çerez dosyası gibi iç dosyalar sunulmaz.
+    if is_private_job_file(filename):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        path = store.output_path(job_id, filename)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path)
 

@@ -4,6 +4,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import gradio as gr
 from yt_dlp import YoutubeDL
 from yt_dlp.postprocessor import PostProcessor
@@ -14,6 +15,20 @@ import structlog
 logger = structlog.get_logger()
 
 
+_PRIVATE_COOKIE_DIR = None
+
+
+def _private_cookie_dir() -> str:
+    """Çerez dosyası için süreç başına özel (0700) geçici klasör.
+
+    Çerezler indirme klasörüne (iş klasörü, /api/jobs/<id>/files/ ile sunulur) yazılmaz.
+    """
+    global _PRIVATE_COOKIE_DIR
+    if not _PRIVATE_COOKIE_DIR or not os.path.isdir(_PRIVATE_COOKIE_DIR):
+        _PRIVATE_COOKIE_DIR = tempfile.mkdtemp(prefix="videotrans-ytdlp-")
+    return _PRIVATE_COOKIE_DIR
+
+
 def _youtube_cookiefile(download_folder: str) -> str | None:
     configured_path = os.getenv("YTDLP_COOKIES_PATH") or os.getenv("YOUTUBE_COOKIES_PATH")
     if configured_path and os.path.exists(configured_path):
@@ -22,13 +37,14 @@ def _youtube_cookiefile(download_folder: str) -> str | None:
     encoded_cookies = os.getenv("YTDLP_COOKIES_B64") or os.getenv("YOUTUBE_COOKIES_B64")
     plain_cookies = os.getenv("YTDLP_COOKIES") or os.getenv("YOUTUBE_COOKIES")
     if encoded_cookies or plain_cookies:
-        cookiefile_path = os.path.join(download_folder, "youtube_cookies.txt")
         try:
+            cookiefile_path = os.path.join(_private_cookie_dir(), "youtube_cookies.txt")
             if encoded_cookies:
                 cookie_content = base64.b64decode(encoded_cookies).decode("utf-8")
             else:
                 cookie_content = plain_cookies.replace("\\n", "\n")
-            with open(cookiefile_path, "w", encoding="utf-8") as cookie_file:
+            fd = os.open(cookiefile_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as cookie_file:
                 cookie_file.write(cookie_content)
             return cookiefile_path
         except Exception as exc:
@@ -62,7 +78,8 @@ def _yt_dlp_cli_download(url: str, outtmpl: str, cookiefile_path: str | None, no
         command.extend(["--cookies", cookiefile_path])
     if node_path:
         command.extend(["--js-runtimes", f"node:{node_path}"])
-    command.append(url)
+    # "--": URL "-" ile başlasa bile yt-dlp seçeneği (ör. --exec) olarak yorumlanmasın.
+    command.extend(["--", url])
 
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True)
