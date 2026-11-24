@@ -2,12 +2,18 @@
 (() => {
   'use strict';
   const config = document.currentScript?.dataset;
+  if (/^\/(admin|api|login|signup|auth)(?:\/|$)/.test(location.pathname)) return;
   if (!config || location.origin !== config.siteOrigin || document.getElementById('site-visit-preference')) return;
   const choiceKey = 'site-visits:analytics-choice:v1';
   const loadClient = () => import('/.well-known/site-visits/client.mjs');
   const read = () => { try { return localStorage.getItem(choiceKey); } catch { return null; } };
   const privacySignal = () => navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
-  const allowed = () => read() === 'yes' && !privacySignal();
+  let withdrawn = false;
+  const vetoKey = choiceKey + ':withdrawn';
+  const allowed = () => {
+    try { return !withdrawn && !sessionStorage.getItem(vetoKey) && read() === 'yes' && !privacySignal(); }
+    catch { return false; }
+  };
   const labels = document.documentElement.lang?.startsWith('en') ? {
     title: 'Visit measurement', allow: 'Allow this site to count this browser once per day',
     detail: 'The daily identifier stays on this site. Only totals go to the reporting panel. You can change this choice here.',
@@ -71,8 +77,18 @@
   }
   toggle.addEventListener('change', () => {
     const yes = toggle.checked && !privacySignal();
-    try { localStorage.setItem(choiceKey, yes ? 'yes' : 'no'); } catch { syncChoice(); return; }
-    if (yes) void record(); else void revoke();
+    withdrawn = !yes;
+    if (!yes) {
+      try { sessionStorage.setItem(vetoKey, '1'); } catch {}
+      try { localStorage.removeItem(choiceKey); } catch {}
+      void revoke();
+      return;
+    }
+    try {
+      localStorage.setItem(choiceKey, 'yes');
+      sessionStorage.removeItem(vetoKey);
+    } catch { withdrawn = true; syncChoice(); return; }
+    void record();
   });
   window.addEventListener('storage', event => {
     if (event.key !== choiceKey && event.key !== null) {
