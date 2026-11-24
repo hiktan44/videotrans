@@ -15,6 +15,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.pathname === '/site-visit-preference.js' ||
+      url.pathname.startsWith('/.well-known/site-visits/')) return;
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/') || url.pathname.startsWith('/webhook')) return;
   if (req.mode === 'navigate' || req.destination === 'document') {

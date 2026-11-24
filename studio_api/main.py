@@ -147,6 +147,15 @@ def health():
     return {"ok": True, "ai": ai_gateway.status()}
 
 
+@app.get("/api/site-visit-context")
+def site_visit_context(request: Request):
+    # A shared or stale login cookie is enough to leave this browser out of anonymous counts.
+    return Response(
+        status_code=409 if request.cookies.get(AUTH_COOKIE) else 204,
+        headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
+    )
+
+
 @app.get("/api/auth/session")
 def auth_session(request: Request):
     return {"enabled": _auth_enabled(), "authenticated": _verify_session(request.cookies.get(AUTH_COOKIE))}

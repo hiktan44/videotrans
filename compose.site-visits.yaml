@@ -1,0 +1,43 @@
+services:
+  site-sayaci:
+    build: ./site-sayaci
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    expose: ["3806"]
+    networks: [coolify]
+    volumes:
+      - private:/var/lib/site-sayaci
+      - aggregate:/var/lib/site-sayaci/out
+    environment:
+      SITE_ID: videotrans
+      SITE_ORIGIN: https://videotrans.app
+      SITE_VISITS_ENABLED: "${SITE_VISITS_ENABLED:-0}"
+    labels:
+      com.seymata.site-visits.app: videotrans
+      com.seymata.site-visits.host: videotrans.app
+      com.seymata.site-visits.schema: '1'
+      traefik.enable: 'true'
+      traefik.docker.network: coolify
+      traefik.http.routers.site-visits-videotrans.rule: "Host(`videotrans.app`) && (Path(`/.well-known/site-visits/client.mjs`) || Path(`/.well-known/site-visits/page`))"
+      traefik.http.routers.site-visits-videotrans.entrypoints: https
+      traefik.http.routers.site-visits-videotrans.tls: 'true'
+      traefik.http.routers.site-visits-videotrans.service: site-visits-videotrans
+      traefik.http.routers.site-visits-videotrans.middlewares: site-visits-videotrans-privacy
+      traefik.http.services.site-visits-videotrans.loadbalancer.server.port: '3806'
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.Cookie: ''
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.Authorization: ''
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.Referer: ''
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.Forwarded: ''
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.X-Forwarded-For: ''
+      traefik.http.middlewares.site-visits-videotrans-privacy.headers.customrequestheaders.X-Real-IP: ''
+networks:
+  coolify:
+    external: true
+    name: coolify
+volumes:
+  private:
+    name: site-visits-videotrans-private
+  aggregate:
+    name: site-visits-videotrans-out
